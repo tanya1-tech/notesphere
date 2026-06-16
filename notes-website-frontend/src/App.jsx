@@ -13,6 +13,8 @@ import Profile from './pages/Profile';
 import Courses from './pages/Courses';
 import About from './pages/About';
 import Contact from './pages/Contact';
+import ErrorBoundary from './components/ErrorBoundary';
+import LoadingSpinner from './components/LoadingSpinner';
 import { getProfile } from './services/api';
 import './App.css';
 
@@ -31,6 +33,7 @@ function App() {
         const { data } = await getProfile();
         setUser(data);
       } catch (error) {
+        console.error('Auth check failed:', error);
         localStorage.removeItem('token');
       }
     }
@@ -47,55 +50,57 @@ function App() {
   };
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   return (
-    <Router>
-      <div className="App">
-        <Navbar user={user} onLogout={handleLogout} />
-        <main>
-          <Routes>
-            <Route path="/" element={<Home user={user} />} />
-            <Route 
-              path="/login" 
-              element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/dashboard" />} 
-            />
-            <Route 
-              path="/register" 
-              element={!user ? <Register onLogin={handleLogin} /> : <Navigate to="/dashboard" />} 
-            />
-            <Route 
-              path="/dashboard" 
-              element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} 
-            />
-            <Route 
-              path="/upload" 
-              element={user ? <UploadNotes user={user} /> : <Navigate to="/login" />} 
-            />
-            <Route path="/notes" element={<Notes />} />
-            <Route 
-              path="/profile" 
-              element={user ? <Profile user={user} /> : <Navigate to="/login" />} 
-            />
-            
-            {/* Additional routes for the menu items */}
-            <Route path="/courses" element={<Courses />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/pages" element={
-              <div className="container">
-                <div className="card">
-                  <h2>Pages</h2>
-                  <p>Pages section coming soon...</p>
-                </div>
-              </div>
-            } />
-          </Routes>
-        </main>
-        <ToastContainer position="bottom-right" />
-      </div>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <div className="App">
+          <Navbar user={user} onLogout={handleLogout} />
+          <main>
+            <Routes>
+              <Route path="/" element={<Home user={user} />} />
+              <Route 
+                path="/login" 
+                element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/dashboard" />} 
+              />
+              <Route 
+                path="/register" 
+                element={!user ? <Register onLogin={handleLogin} /> : <Navigate to="/dashboard" />} 
+              />
+              <Route 
+                path="/dashboard" 
+                element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} 
+              />
+              <Route 
+                path="/upload" 
+                element={user ? <UploadNotes user={user} /> : <Navigate to="/login" />} 
+              />
+              <Route path="/notes" element={<Notes />} />
+              <Route 
+                path="/profile" 
+                element={user ? <Profile user={user} /> : <Navigate to="/login" />} 
+              />
+              <Route path="/courses" element={<Courses />} />
+              <Route path="/about" element={<About user={user} />} />
+              <Route path="/contact" element={<Contact />} />
+            </Routes>
+          </main>
+          <ToastContainer 
+            position="bottom-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+          />
+        </div>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

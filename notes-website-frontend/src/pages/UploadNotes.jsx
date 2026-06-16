@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { uploadNote } from '../services/api';
 
@@ -16,85 +17,116 @@ const UploadNotes = ({ user }) => {
   });
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const fileInputRef = React.useRef(null);
+  const [errors, setErrors] = useState({});
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef(null);
+  const navigate = useNavigate();
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.title.trim()) newErrors.title = 'Title is required';
+    if (formData.title.length > 200) newErrors.title = 'Title cannot exceed 200 characters';
+    if (!formData.description.trim()) newErrors.description = 'Description is required';
+    if (formData.description.length > 2000) newErrors.description = 'Description cannot exceed 2000 characters';
+    if (!formData.subject.trim()) newErrors.subject = 'Subject is required';
+    if (!formData.semester) newErrors.semester = 'Semester is required';
+    if (!formData.branch) newErrors.branch = 'Branch is required';
+    if (!formData.course) newErrors.course = 'Course is required';
+    if (!file) newErrors.file = 'Please select a PDF file';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!file) {
-      toast.error('Please select a PDF file');
-      return;
-    }
-
-    if (file.type !== 'application/pdf') {
-      toast.error('Please upload only PDF files');
+    if (!validateForm()) {
+      toast.error('Please fix the errors in the form');
       return;
     }
 
     setLoading(true);
+    setUploadProgress(0);
 
     const uploadData = new FormData();
-    uploadData.append('title', formData.title);
-    uploadData.append('description', formData.description);
-    uploadData.append('subject', formData.subject);
-    uploadData.append('semester', formData.semester);
-    uploadData.append('branch', formData.branch);
-    uploadData.append('course', formData.course);
-    uploadData.append('courseCode', formData.courseCode);
-    uploadData.append('credits', formData.credits);
-    uploadData.append('tags', formData.tags);
+    Object.keys(formData).forEach(key => {
+      if (formData[key] !== undefined && formData[key] !== '') {
+        uploadData.append(key, formData[key]);
+      }
+    });
     uploadData.append('file', file);
 
     try {
-      const response = await uploadNote(uploadData);
-      console.log('Upload response:', response);
-      
-      toast.success('Notes uploaded successfully!');
-      
-      // Reset form
-      setFormData({
-        title: '',
-        description: '',
-        subject: '',
-        semester: '',
-        branch: '',
-        course: '',
-        courseCode: '',
-        credits: 3,
-        tags: ''
+      const response = await uploadNote(uploadData, {
+        onUploadProgress: (progressEvent) => {
+          const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+          setUploadProgress(progress);
+        }
       });
-      setFile(null);
       
-      // Reset file input using ref
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      
+      toast.success('Notes uploaded successfully! 🎉');
+      navigate('/dashboard');
     } catch (error) {
       console.error('Upload error:', error);
-      toast.error(error.response?.data?.message || 'Upload failed. Please try again.');
+      
+      if (error.response) {
+        const message = error.response.data?.message || 'Upload failed';
+        toast.error(message);
+        
+        if (error.response.data?.errors) {
+          const fieldErrors = {};
+          error.response.data.errors.forEach(err => {
+            fieldErrors[err.param] = err.msg;
+          });
+          setErrors(fieldErrors);
+        }
+      } else if (error.request) {
+        toast.error('Network error. Please check your connection.');
+      } else {
+        toast.error('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
+      setUploadProgress(0);
     }
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
-      if (selectedFile.type === 'application/pdf') {
-        setFile(selectedFile);
-        toast.success('PDF file selected successfully!');
-      } else {
+      // Validate file type
+      if (selectedFile.type !== 'application/pdf') {
         toast.error('Please select a PDF file only');
         e.target.value = '';
+        setErrors(prev => ({ ...prev, file: 'Only PDF files are allowed' }));
+        return;
       }
+      
+      // Validate file size (10MB)
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        toast.error('File size exceeds 10MB limit');
+        e.target.value = '';
+        setErrors(prev => ({ ...prev, file: 'File size must be less than 10MB' }));
+        return;
+      }
+      
+      setFile(selectedFile);
+      setErrors(prev => ({ ...prev, file: '' }));
+      toast.success(`Selected: ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`);
     }
   };
 
@@ -103,7 +135,9 @@ const UploadNotes = ({ user }) => {
     'Information Technology',
     'Electronics & Communication Engineering',
     'Mechanical Engineering',
-    'Civil Engineering'
+    'Civil Engineering',
+    'Electrical Engineering',
+    'Chemical Engineering'
   ];
 
   const courses = [
@@ -112,127 +146,154 @@ const UploadNotes = ({ user }) => {
     'M.Tech',
     'MBA',
     'BCA',
-    'MCA'
+    'MCA',
+    'B.Sc',
+    'M.Sc'
   ];
 
   return (
-    <div className="container">
+    <div className="container upload-page">
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <div className="card">
-          <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>Upload Study Notes</h2>
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <h2>📤 Upload Study Notes</h2>
+            <p style={{ color: '#666' }}>
+              Share your knowledge with the community
+            </p>
+          </div>
           
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="form-group">
-              <label>Title *</label>
+              <label htmlFor="title">Title *</label>
               <input
                 type="text"
+                id="title"
                 name="title"
-                className="form-control"
+                className={`form-control ${errors.title ? 'is-invalid' : ''}`}
                 value={formData.title}
                 onChange={handleChange}
                 placeholder="e.g., Data Structures Complete Notes"
-                required
+                disabled={loading}
+                maxLength={200}
               />
+              {errors.title && <div className="invalid-feedback">{errors.title}</div>}
+              <small className="form-text">{formData.title.length}/200 characters</small>
             </div>
 
             <div className="form-group">
-              <label>Description *</label>
+              <label htmlFor="description">Description *</label>
               <textarea
+                id="description"
                 name="description"
-                className="form-control"
+                className={`form-control ${errors.description ? 'is-invalid' : ''}`}
                 rows="4"
                 value={formData.description}
                 onChange={handleChange}
                 placeholder="Describe the content of your notes..."
-                required
+                disabled={loading}
+                maxLength={2000}
               />
+              {errors.description && <div className="invalid-feedback">{errors.description}</div>}
+              <small className="form-text">{formData.description.length}/2000 characters</small>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-row">
               <div className="form-group">
-                <label>Subject *</label>
+                <label htmlFor="subject">Subject *</label>
                 <input
                   type="text"
+                  id="subject"
                   name="subject"
-                  className="form-control"
+                  className={`form-control ${errors.subject ? 'is-invalid' : ''}`}
                   value={formData.subject}
                   onChange={handleChange}
                   placeholder="e.g., Data Structures"
-                  required
+                  disabled={loading}
                 />
+                {errors.subject && <div className="invalid-feedback">{errors.subject}</div>}
               </div>
 
               <div className="form-group">
-                <label>Semester *</label>
+                <label htmlFor="semester">Semester *</label>
                 <select
+                  id="semester"
                   name="semester"
-                  className="form-control"
+                  className={`form-control ${errors.semester ? 'is-invalid' : ''}`}
                   value={formData.semester}
                   onChange={handleChange}
-                  required
+                  disabled={loading}
                 >
                   <option value="">Select Semester</option>
                   {[1,2,3,4,5,6,7,8].map(sem => (
                     <option key={sem} value={sem}>Semester {sem}</option>
                   ))}
                 </select>
+                {errors.semester && <div className="invalid-feedback">{errors.semester}</div>}
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-row">
               <div className="form-group">
-                <label>Branch *</label>
+                <label htmlFor="branch">Branch *</label>
                 <select
+                  id="branch"
                   name="branch"
-                  className="form-control"
+                  className={`form-control ${errors.branch ? 'is-invalid' : ''}`}
                   value={formData.branch}
                   onChange={handleChange}
-                  required
+                  disabled={loading}
                 >
                   <option value="">Select Branch</option>
                   {branches.map(branch => (
                     <option key={branch} value={branch}>{branch}</option>
                   ))}
                 </select>
+                {errors.branch && <div className="invalid-feedback">{errors.branch}</div>}
               </div>
 
               <div className="form-group">
-                <label>Course *</label>
+                <label htmlFor="course">Course *</label>
                 <select
+                  id="course"
                   name="course"
-                  className="form-control"
+                  className={`form-control ${errors.course ? 'is-invalid' : ''}`}
                   value={formData.course}
                   onChange={handleChange}
-                  required
+                  disabled={loading}
                 >
                   <option value="">Select Course</option>
                   {courses.map(course => (
                     <option key={course} value={course}>{course}</option>
                   ))}
                 </select>
+                {errors.course && <div className="invalid-feedback">{errors.course}</div>}
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-row">
               <div className="form-group">
-                <label>Course Code (Optional)</label>
+                <label htmlFor="courseCode">Course Code (Optional)</label>
                 <input
                   type="text"
+                  id="courseCode"
                   name="courseCode"
                   className="form-control"
                   value={formData.courseCode}
                   onChange={handleChange}
                   placeholder="e.g., CS301"
+                  disabled={loading}
                 />
               </div>
 
               <div className="form-group">
-                <label>Credits</label>
+                <label htmlFor="credits">Credits</label>
                 <select
+                  id="credits"
                   name="credits"
                   className="form-control"
                   value={formData.credits}
                   onChange={handleChange}
+                  disabled={loading}
                 >
                   {[1,2,3,4,5].map(credit => (
                     <option key={credit} value={credit}>{credit} Credit{credit > 1 ? 's' : ''}</option>
@@ -242,54 +303,85 @@ const UploadNotes = ({ user }) => {
             </div>
 
             <div className="form-group">
-              <label>Tags (Optional)</label>
+              <label htmlFor="tags">Tags (Optional)</label>
               <input
                 type="text"
+                id="tags"
                 name="tags"
                 className="form-control"
                 value={formData.tags}
                 onChange={handleChange}
                 placeholder="e.g., programming, algorithms (separate with commas)"
+                disabled={loading}
               />
+              <small className="form-text">Separate tags with commas</small>
             </div>
 
             <div className="form-group">
-              <label>PDF File *</label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="form-control"
-                accept=".pdf"
-                onChange={handleFileChange}
-                required
-              />
-              {file && (
-                <p style={{ color: '#666', marginTop: '0.5rem' }}>
-                  Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                </p>
-              )}
+              <label htmlFor="file">PDF File *</label>
+              <div className="file-upload-wrapper">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  id="file"
+                  className={`form-control ${errors.file ? 'is-invalid' : ''}`}
+                  accept=".pdf,application/pdf"
+                  onChange={handleFileChange}
+                  disabled={loading}
+                />
+                {errors.file && <div className="invalid-feedback">{errors.file}</div>}
+                {file && (
+                  <div className="file-info">
+                    <span>📄 {file.name}</span>
+                    <span>({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                    <button 
+                      type="button"
+                      className="file-remove"
+                      onClick={() => {
+                        setFile(null);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = '';
+                        }
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+                <small className="form-text">Maximum file size: 10MB. Only PDF files are accepted.</small>
+              </div>
             </div>
+
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${uploadProgress}%` }}
+                />
+                <span className="progress-text">{uploadProgress}% uploaded</span>
+              </div>
+            )}
 
             <button 
               type="submit" 
-              className="btn btn-primary"
-              style={{ width: '100%' }}
+              className="btn btn-primary upload-btn"
               disabled={loading}
             >
-              {loading ? 'Uploading...' : 'Upload Notes'}
+              {loading ? (
+                <>
+                  <span className="spinner" style={{ marginRight: '0.5rem' }}></span>
+                  {uploadProgress > 0 ? `Uploading ${uploadProgress}%...` : 'Uploading...'}
+                </>
+              ) : (
+                '📤 Upload Notes'
+              )}
             </button>
           </form>
 
           {/* Upload Guidelines */}
-          <div style={{ 
-            background: 'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)', 
-            color: 'white',
-            padding: '1.5rem',
-            borderRadius: '12px',
-            marginTop: '2rem'
-          }}>
-            <h4 style={{ marginBottom: '0.5rem' }}>📝 Upload Guidelines</h4>
-            <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+          <div className="upload-guidelines">
+            <h4>📝 Upload Guidelines</h4>
+            <ul>
               <li>Only PDF files are accepted (Max size: 10MB)</li>
               <li>Ensure notes are clear, readable, and properly formatted</li>
               <li>Include relevant topics and chapters in description</li>

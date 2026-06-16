@@ -1,122 +1,114 @@
 import express from 'express';
-import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import Note from '../models/Note.js';
-import jwt from 'jsonwebtoken';
+import { auth, adminAuth } from '../middleware/auth.js';
+import { validateNoteUpload, validateNoteFilters, validateId } from '../middleware/validate.js';
+import { uploadLimiter, downloadLimiter } from '../middleware/rateLimiter.js';
+import { upload, handleUploadError } from '../middleware/upload.js';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-// Multer configuration for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/')
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Upload note (protected, with rate limiting and validation)
+router.post(
+  '/upload', 
+  auth, 
+  uploadLimiter, 
+  upload.single('file'), 
+  handleUploadError,
+  validateNoteUpload, 
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'Please upload a PDF file' });
+      }
+      
+      const { title, description, subject, semester, branch, course, courseCode, credits, tags } = req.body;
 
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF files are allowed'), false);
+      // Create note
+      const noteData = {
+        title,
+        description,
+        subject,
+        semester: parseInt(semester),
+        branch,
+        course,
+        courseCode: courseCode || '',
+        credits: credits ? parseInt(credits) : 3,
+        tags: tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+        file: req.file.filename,
+        fileSize: req.file.size,
+        uploadedBy: req.user.id
+      };
+
+      const note = await Note.create(noteData);
+      await note.populate('uploadedBy', 'name email');
+
+      res.status(201).json({
+        message: 'Note uploaded successfully',
+        note
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      
+      if (error.name === 'ValidationError') {
+        const errors = Object.values(error.errors).map(err => err.message);
+        return res.status(400).json({ message: errors.join(', ') });
+      }
+      
+      res.status(500).json({ message: error.message });
     }
   }
-});
+);
 
-// Upload note
-router.post('/upload', upload.single('file'), async (req, res) => {
+// Get all notes with filters
+router.get('/', validateNoteFilters, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const { semester, branch, subject, course, page = 1, limit = 20, search } = req.query;
     
-    const { title, description, subject, semester, branch, course, courseCode, credits, tags } = req.body;
-
-    // Create note with proper field handling
-    const noteData = {
-      title,
-      description,
-      subject,
-      semester: parseInt(semester),
-      branch,
-      course,
-      courseCode: courseCode || '', // Handle optional field
-      credits: credits ? parseInt(credits) : 3,
-      tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-      file: req.file.filename,
-      fileSize: req.file.size,
-      uploadedBy: decoded.id
-    };
-
-    const note = await Note.create(noteData);
-
-    // Populate user info
-    await note.populate('uploadedBy', 'name email');
-
-    res.status(201).json({
-      message: 'Note uploaded successfully',
-      note
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    
-    // Better error handling
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ message: errors.join(', ') });
-    }
-    
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get all notes - SHOW ALL NOTES (INCLUDING PENDING)
-router.get('/', async (req, res) => {
-  try {
-    const { semester, branch, subject, course, page = 1, limit = 100 } = req.query;
-    
-    console.log('GET /api/notes calledy:', req.query);
-    
-    // TEMPORARY: Show all notes regardless of status
-    let query = {}; // Changed from { status: 'approved' }
+    let query = { status: 'approved' };
     
     if (semester) query.semester = parseInt(semester);
     if (branch) query.branch = new RegExp(branch, 'i');
-    if (subject) query.subject = new RegExp(subject, 'i');
     if (course) query.course = new RegExp(course, 'i');
-
-     // ✅ FIX: convert strings to numbers safely
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 100;
+    if (subject) query.subject = new RegExp(subject, 'i');
     
-    console.log('MongoDB query:', query);
+    if (search) {
+      query.$or = [
+        { title: new RegExp(search, 'i') },
+        { subject: new RegExp(search, 'i') },
+        { description: new RegExp(search, 'i') },
+        { tags: new RegExp(search, 'i') }
+      ];
+    }
 
-    const notes = await Note.find(query).populate('uploadedBy', 'name email', null, { strictPopulate: false })
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 20;
+    const skip = (pageNum - 1) * limitNum;
 
-      .sort({ createdAt: -1 })
-      .limit(limitNum * 1)
-      .skip((page - 1) * limit);
-
-    const total = await Note.countDocuments(query);
-
-    console.log(`Found ${notes.length} notes out of ${total} total`);
+    const [notes, total] = await Promise.all([
+      Note.find(query)
+        .populate('uploadedBy', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      Note.countDocuments(query)
+    ]);
 
     res.json({
       notes,
-      totalPages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      total
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+        hasNext: pageNum < Math.ceil(total / limitNum),
+        hasPrev: pageNum > 1
+      }
     });
   } catch (error) {
     console.error('Get notes error:', error);
@@ -124,46 +116,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Debug route - Get all notes with full details
-router.get('/debug/all', async (req, res) => {
+// Get user's uploaded notes (protected)
+router.get('/user/my-notes', auth, async (req, res) => {
   try {
-    const notes = await Note.find({})
-      .populate('uploadedBy', 'name email')
-      .sort({ createdAt: -1 });
-    
-    console.log('Total notes in database:', notes.length);
-    notes.forEach(note => {
-      console.log('Note:', {
-        id: note._id,
-        title: note.title,
-        subject: note.subject,
-        file: note.file,
-        status: note.status,
-        uploadedBy: note.uploadedBy?.name
-      });
-    });
-    
-    res.json({
-      total: notes.length,
-      notes: notes
-    });
-  } catch (error) {
-    console.error('Debug error:', error);
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get user's uploaded notes
-router.get('/user/my-notes', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    
-    const notes = await Note.find({ uploadedBy: decoded.id })
+    const notes = await Note.find({ uploadedBy: req.user.id })
       .sort({ createdAt: -1 });
 
     res.json(notes);
@@ -174,15 +130,15 @@ router.get('/user/my-notes', async (req, res) => {
 });
 
 // Get note by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', validateId, async (req, res) => {
   try {
-    const note = await Note.findById(req.params.id).populate('uploadedBy', 'name email');
+    const note = await Note.findById(req.params.id)
+      .populate('uploadedBy', 'name email');
     
     if (!note) {
       return res.status(404).json({ message: 'Note not found' });
     }
 
-    // Increment views
     note.views += 1;
     await note.save();
 
@@ -193,8 +149,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Download note
-router.get('/:id/download', async (req, res) => {
+// Download note with rate limiting
+router.get('/:id/download', downloadLimiter, validateId, async (req, res) => {
   try {
     const note = await Note.findById(req.params.id);
     
@@ -202,20 +158,71 @@ router.get('/:id/download', async (req, res) => {
       return res.status(404).json({ message: 'Note not found' });
     }
 
-    // Increment downloads
     note.downloads += 1;
     await note.save();
 
-    const filePath = path.join(process.cwd(), 'uploads', note.file);
+    const filePath = path.join(__dirname, '../uploads', note.file);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'File not found on server' });
+    }
     
     res.download(filePath, `${note.title}.pdf`, (err) => {
       if (err) {
         console.error('Download error:', err);
-        res.status(500).json({ message: 'Error downloading file' });
+        if (!res.headersSent) {
+          res.status(500).json({ message: 'Error downloading file' });
+        }
       }
     });
   } catch (error) {
     console.error('Download error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete note (protected - only owner)
+router.delete('/:id', auth, validateId, async (req, res) => {
+  try {
+    const note = await Note.findById(req.params.id);
+    
+    if (!note) {
+      return res.status(404).json({ message: 'Note not found' });
+    }
+    
+    if (note.uploadedBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'You can only delete your own notes' });
+    }
+    
+    // Delete file from storage
+    const filePath = path.join(__dirname, '../uploads', note.file);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    
+    await note.deleteOne();
+    
+    res.json({ message: 'Note deleted successfully' });
+  } catch (error) {
+    console.error('Delete note error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Debug route (admin only)
+router.get('/debug/all', auth, adminAuth, async (req, res) => {
+  try {
+    const notes = await Note.find({})
+      .populate('uploadedBy', 'name email')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      total: notes.length,
+      notes: notes
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
     res.status(500).json({ message: error.message });
   }
 });

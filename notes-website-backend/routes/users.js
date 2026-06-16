@@ -1,11 +1,14 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { auth, adminAuth } from '../middleware/auth.js';
+import { validateRegister, validateLogin } from '../middleware/validate.js';
+import { strictLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
-// Register
-router.post('/register', async (req, res) => {
+// Register with strict rate limiting and validation
+router.post('/register', strictLimiter, validateRegister, async (req, res) => {
   try {
     const { name, email, password, mobile, address, city, gender } = req.body;
 
@@ -27,9 +30,11 @@ router.post('/register', async (req, res) => {
     });
 
     // Generate JWT token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || '7a404e4e1985f17de59472c9206f3092', {
-      expiresIn: '30d',
-    });
+    const token = jwt.sign(
+      { id: user._id }, 
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -53,13 +58,13 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login
-router.post('/login', async (req, res) => {
+// Login with strict rate limiting and validation
+router.post('/login', strictLimiter, validateLogin, async (req, res) => {
   try {
     const { email, password } = req.body;
 
     // Check if user exists
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -71,9 +76,11 @@ router.post('/login', async (req, res) => {
     }
 
     // Generate JWT token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || '7a404e4e1985f17de59472c9206f3092', {
-      expiresIn: '30d',
-    });
+    const token = jwt.sign(
+      { id: user._id }, 
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
     res.json({
       message: 'Login successful',
@@ -91,16 +98,10 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Get user profile
-router.get('/profile', async (req, res) => {
+// Get user profile (protected)
+router.get('/profile', auth, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || '7a404e4e1985f17de59472c9206f3092');
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await User.findById(req.user.id).select('-password');
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -109,17 +110,37 @@ router.get('/profile', async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error('Profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update user profile (protected)
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const { name, mobile, address, city, gender } = req.body;
     
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'Invalid token' });
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { name, mobile, address, city, gender },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
-    
+
+    res.json({
+      message: 'Profile updated successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
 // Get all users (admin only)
-router.get('/', async (req, res) => {
+router.get('/', auth, adminAuth, async (req, res) => {
   try {
     const users = await User.find().select('-password');
     res.json(users);
