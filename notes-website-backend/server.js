@@ -16,17 +16,11 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // CORS configuration
-// app.use(cors({
-//   origin: [
-//     'http://localhost:5173',
-//     'https://notesphere-sandy.vercel.app'
-//   ],
-//   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-//   credentials: true
-// }));
-
 app.use(cors({
-  origin: [process.env.CLIENT_URL, 'http://localhost:5173'],
+  origin: [
+    'https://notesphere-sandy.vercel.app',
+    'http://localhost:5173'
+  ],
   credentials: true
 }));
 
@@ -45,6 +39,11 @@ app.get('/', (req, res) => {
     message: 'Notes Website Backend is running!',
     timestamp: new Date().toISOString()
   });
+});
+
+app.use((req, res, next) => {
+  console.log("REQUEST:", req.method, req.url);
+  next();
 });
 
 // MongoDB connection
