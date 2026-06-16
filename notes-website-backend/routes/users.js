@@ -27,7 +27,7 @@ router.post('/register', async (req, res) => {
     });
 
     // Generate JWT token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'your-secret-key', {
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || '7a404e4e1985f17de59472c9206f3092', {
       expiresIn: '30d',
     });
 
@@ -71,7 +71,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Generate JWT token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'your-secret-key', {
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || '7a404e4e1985f17de59472c9206f3092', {
       expiresIn: '30d',
     });
 
@@ -99,7 +99,7 @@ router.get('/profile', async (req, res) => {
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || '7a404e4e1985f17de59472c9206f3092');
     const user = await User.findById(decoded.id).select('-password');
     
     if (!user) {
