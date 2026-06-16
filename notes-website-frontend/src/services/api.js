@@ -1,8 +1,11 @@
 import axios from 'axios';
 
+// Use environment variable with fallback
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const API = axios.create({
-  baseURL: `${import.meta.env.VITE_API_URL}/api`,
-  timeout: 30000, // 30 seconds timeout
+  baseURL: `${API_URL}/api`,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -46,7 +49,6 @@ export const updateProfile = (formData) => API.put('/users/profile', formData);
 
 // Notes APIs
 export const getNotes = (filters = {}) => {
-  // Clean up empty filters
   const cleanFilters = Object.fromEntries(
     Object.entries(filters).filter(([_, value]) => value !== '' && value !== undefined && value !== null)
   );
@@ -73,7 +75,7 @@ export const getUserNotes = () => API.get('/notes/user/my-notes');
 export const getCourseNotes = (courseName, filters = {}) => 
   API.get(`/notes/course/${courseName}`, { params: filters });
 
-// Admin APIs (if needed)
+// Admin APIs
 export const getAllNotes = () => API.get('/notes/debug/all');
 
 export default API;

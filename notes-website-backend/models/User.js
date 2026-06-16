@@ -126,4 +126,9 @@ userSchema.methods.getStats = async function() {
   };
 };
 
+// Static method to find user by email
+userSchema.statics.findByEmail = function(email) {
+  return this.findOne({ email: email.toLowerCase() });
+};
+
 export default mongoose.model('User', userSchema);

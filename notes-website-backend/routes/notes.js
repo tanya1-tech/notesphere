@@ -48,9 +48,17 @@ router.post(
       const note = await Note.create(noteData);
       await note.populate('uploadedBy', 'name email');
 
+      // Construct full URL for the file
+      const baseUrl = process.env.RAILWAY_STATIC_URL 
+        ? `https://${process.env.RAILWAY_STATIC_URL}`
+        : `${req.protocol}://${req.get('host')}`;
+
       res.status(201).json({
         message: 'Note uploaded successfully',
-        note
+        note: {
+          ...note.toObject(),
+          fileUrl: `${baseUrl}/uploads/${note.file}`
+        }
       });
     } catch (error) {
       console.error('Upload error:', error);
@@ -99,8 +107,18 @@ router.get('/', validateNoteFilters, async (req, res) => {
       Note.countDocuments(query)
     ]);
 
+    // Add file URLs
+    const baseUrl = process.env.RAILWAY_STATIC_URL 
+      ? `https://${process.env.RAILWAY_STATIC_URL}`
+      : `${req.protocol}://${req.get('host')}`;
+
+    const notesWithUrls = notes.map(note => ({
+      ...note.toObject(),
+      fileUrl: `${baseUrl}/uploads/${note.file}`
+    }));
+
     res.json({
-      notes,
+      notes: notesWithUrls,
       pagination: {
         total,
         page: pageNum,
@@ -122,7 +140,16 @@ router.get('/user/my-notes', auth, async (req, res) => {
     const notes = await Note.find({ uploadedBy: req.user.id })
       .sort({ createdAt: -1 });
 
-    res.json(notes);
+    const baseUrl = process.env.RAILWAY_STATIC_URL 
+      ? `https://${process.env.RAILWAY_STATIC_URL}`
+      : `${req.protocol}://${req.get('host')}`;
+
+    const notesWithUrls = notes.map(note => ({
+      ...note.toObject(),
+      fileUrl: `${baseUrl}/uploads/${note.file}`
+    }));
+
+    res.json(notesWithUrls);
   } catch (error) {
     console.error('Get user notes error:', error);
     res.status(500).json({ message: error.message });
@@ -142,7 +169,14 @@ router.get('/:id', validateId, async (req, res) => {
     note.views += 1;
     await note.save();
 
-    res.json(note);
+    const baseUrl = process.env.RAILWAY_STATIC_URL 
+      ? `https://${process.env.RAILWAY_STATIC_URL}`
+      : `${req.protocol}://${req.get('host')}`;
+
+    res.json({
+      ...note.toObject(),
+      fileUrl: `${baseUrl}/uploads/${note.file}`
+    });
   } catch (error) {
     console.error('Get note error:', error);
     res.status(500).json({ message: error.message });
