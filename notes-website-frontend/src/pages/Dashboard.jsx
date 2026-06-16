@@ -20,7 +20,7 @@ const Dashboard = ({ user }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/notes/user/my-notes', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notes/user/my-notes`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

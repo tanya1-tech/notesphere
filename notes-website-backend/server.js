@@ -17,7 +17,8 @@ const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: ['http://localhost:5173',
+  'https://YOUR-VERCEL-DOMAIN.vercel.app'],
   credentials: true
 }));
 
