@@ -40,14 +40,14 @@ const Notes = () => {
   };
 
   const handleViewPDF = (note) => {
-    const pdfUrl = `http://localhost:5000/uploads/${note.file}`;
+    const pdfUrl = `${import.meta.env.VITE_API_URL}/uploads/${note.file}`;
     console.log('Opening PDF:', pdfUrl);
     window.open(pdfUrl, '_blank');
   };
 
   const handleDownload = async (note) => {
     try {
-      const pdfUrl = `http://localhost:5000/uploads/${note.file}`;
+      const pdfUrl = `${import.meta.env.VITE_API_URL}/uploads/${note.file}`;
       const link = document.createElement('a');
       link.href = pdfUrl;
       link.setAttribute('download', `${note.title}.pdf`);
@@ -64,7 +64,7 @@ const Notes = () => {
   const testDirectAPI = async () => {
     try {
       console.log('Testing direct API call...');
-      const response = await fetch('http://localhost:5000/api/notes/debug/all');
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notes/debug/all`)
       const data = await response.json();
       console.log('Direct API response:', data);
       toast.info(`Found ${data.total} notes in database`);
