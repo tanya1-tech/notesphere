@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import UploadNotes from './pages/UploadNotes';
 import Notes from './pages/Notes';
 import Profile from './pages/Profile';
+import PDFViewer from './pages/PDFViewer';
 import Courses from './pages/Courses';
 import About from './pages/About';
 import Contact from './pages/Contact';
@@ -83,6 +84,7 @@ function App() {
                 element={user ? <Profile user={user} /> : <Navigate to="/login" />} 
               />
               <Route path="/courses" element={<Courses />} />
+              <Route path="/pdf-viewer" element={<PDFViewer />} />
               <Route path="/about" element={<About user={user} />} />
               <Route path="/contact" element={<Contact />} />
             </Routes>

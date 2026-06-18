@@ -45,7 +45,7 @@ const fileFilter = (req, file, cb) => {
 export const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 30 * 1024 * 1024, // 30MB limit
     files: 1 // Only 1 file at a time
   },
   fileFilter: fileFilter
@@ -56,7 +56,7 @@ export const handleUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ 
-        message: 'File size exceeds 10MB limit' 
+        message: 'File size exceeds 30MB limit' 
       });
     }
     if (err.code === 'LIMIT_FILE_COUNT') {

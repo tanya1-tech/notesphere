@@ -51,6 +51,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Serve uploads folder statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+
 // Logging middleware (optional)
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);

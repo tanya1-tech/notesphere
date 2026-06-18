@@ -16,6 +16,8 @@ const Dashboard = ({ user }) => {
     loadUserNotes();
   }, []);
 
+  
+
   const loadUserNotes = async () => {
     try {
       setLoading(true);
@@ -125,6 +127,9 @@ const Dashboard = ({ user }) => {
           </div>
         </div>
       </div>
+
+
+      
 
       {/* Statistics Grid */}
       <div className="stats-grid">

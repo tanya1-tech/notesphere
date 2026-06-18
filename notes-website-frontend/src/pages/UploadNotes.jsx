@@ -116,11 +116,11 @@ const UploadNotes = ({ user }) => {
         return;
       }
       
-      // Validate file size (10MB)
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        toast.error('File size exceeds 10MB limit');
+      // Validate file size (30MB)
+      if (selectedFile.size > 30 * 1024 * 1024) {
+        toast.error('File size exceeds 30MB limit');
         e.target.value = '';
-        setErrors(prev => ({ ...prev, file: 'File size must be less than 10MB' }));
+        setErrors(prev => ({ ...prev, file: 'File size must be less than 30MB' }));
         return;
       }
       
@@ -348,7 +348,7 @@ const UploadNotes = ({ user }) => {
                     </button>
                   </div>
                 )}
-                <small className="form-text">Maximum file size: 10MB. Only PDF files are accepted.</small>
+                <small className="form-text">Maximum file size: 30MB. Only PDF files are accepted.</small>
               </div>
             </div>
 
@@ -382,7 +382,7 @@ const UploadNotes = ({ user }) => {
           <div className="upload-guidelines">
             <h4>📝 Upload Guidelines</h4>
             <ul>
-              <li>Only PDF files are accepted (Max size: 10MB)</li>
+              <li>Only PDF files are accepted (Max size: 30MB)</li>
               <li>Ensure notes are clear, readable, and properly formatted</li>
               <li>Include relevant topics and chapters in description</li>
               <li>Provide accurate course information for better organization</li>

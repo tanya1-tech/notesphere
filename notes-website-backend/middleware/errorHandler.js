@@ -16,7 +16,7 @@ export const errorHandler = (err, req, res, next) => {
   if (err.name === 'MulterError') {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ 
-        message: 'File size too large. Maximum size is 10MB.' 
+        message: 'File size too large. Maximum size is 30MB.' 
       });
     }
     if (err.code === 'LIMIT_FILE_COUNT') {

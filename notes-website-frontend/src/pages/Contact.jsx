@@ -40,9 +40,9 @@ const Contact = () => {
     {
       icon: '📧',
       title: 'Email Us',
-      details: 'support@notesphere.com',
+      details: 'tanyapoojari7@gmail.com',
       description: 'Send us an email anytime',
-      link: 'mailto:support@notesphere.com'
+      link: 'mailto:tanyapoojari7@gmail.com'
     },
     {
       icon: '📞',
