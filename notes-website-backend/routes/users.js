@@ -11,7 +11,10 @@ const router = express.Router();
 // Register with strict rate limiting and validation
 router.post('/register', strictLimiter, validateRegister, async (req, res) => {
   try {
-    const { name, email, password, mobile, address, city, gender } = req.body;
+    // ✅ Only extract what the form sends: name, email, password
+    const { name, email, password } = req.body;
+
+    console.log('📥 Registration attempt:', { name, email });
 
     // ✅ Validate required fields
     if (!name || !email || !password) {
@@ -30,21 +33,12 @@ router.post('/register', strictLimiter, validateRegister, async (req, res) => {
       });
     }
 
-    // ✅ Create user data object (only include fields that exist in schema)
-    const userData = {
+    // ✅ Create user with ONLY the fields from the form
+    const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password
-    };
-
-    // ✅ Add optional fields only if provided
-    if (mobile) userData.mobile = mobile;
-    if (address) userData.address = address;
-    if (city) userData.city = city;
-    if (gender) userData.gender = gender;
-
-    // Create new user
-    const user = await User.create(userData);
+    });
 
     // Generate JWT token
     const token = jwt.sign(
@@ -87,7 +81,8 @@ router.post('/register', strictLimiter, validateRegister, async (req, res) => {
     
     res.status(500).json({ 
       success: false,
-      message: 'Server error during registration' 
+      message: 'Server error during registration',
+      error: error.message 
     });
   }
 });
@@ -175,16 +170,16 @@ router.get('/profile', auth, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        mobile: user.mobile,
-        address: user.address,
-        city: user.city,
-        gender: user.gender,
+        mobile: user.mobile || '',
+        address: user.address || '',
+        city: user.city || '',
+        gender: user.gender || '',
         role: user.role,
         profileImage: user.profileImage,
-        bio: user.bio,
-        institution: user.institution,
-        course: user.course,
-        graduationYear: user.graduationYear,
+        bio: user.bio || '',
+        institution: user.institution || '',
+        course: user.course || '',
+        graduationYear: user.graduationYear || '',
         isVerified: user.isVerified,
         lastLogin: user.lastLogin,
         createdAt: user.createdAt,
@@ -238,16 +233,16 @@ router.put('/profile', auth, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        mobile: user.mobile,
-        address: user.address,
-        city: user.city,
-        gender: user.gender,
+        mobile: user.mobile || '',
+        address: user.address || '',
+        city: user.city || '',
+        gender: user.gender || '',
         role: user.role,
         profileImage: user.profileImage,
-        bio: user.bio,
-        institution: user.institution,
-        course: user.course,
-        graduationYear: user.graduationYear,
+        bio: user.bio || '',
+        institution: user.institution || '',
+        course: user.course || '',
+        graduationYear: user.graduationYear || '',
         isVerified: user.isVerified,
         lastLogin: user.lastLogin,
         createdAt: user.createdAt,
