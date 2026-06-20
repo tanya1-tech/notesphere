@@ -4,6 +4,8 @@ import User from '../models/User.js';
 import { auth, adminAuth } from '../middleware/auth.js';
 import { validateRegister, validateLogin } from '../middleware/validate.js';
 import { strictLimiter } from '../middleware/rateLimiter.js';
+import { register, login, getProfile } from '../controllers/userController.js';
+
 
 const router = express.Router();
 
