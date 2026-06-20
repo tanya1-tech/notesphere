@@ -5,7 +5,7 @@ const Navbar = ({ user, onLogout }) => {
   return (
     <nav className="navbar">
       <Link to="/" className="navbar-brand">
-        📚 Notes<span>phere</span>
+        📚 Notesphere
       </Link>
       
       <ul className="nav-links">
