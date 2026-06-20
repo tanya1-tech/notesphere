@@ -14,7 +14,7 @@ import PDFViewer from './pages/PDFViewer';
 import Courses from './pages/Courses';
 import About from './pages/About';
 import Contact from './pages/Contact';
-import AdminDashboard from './pages/AdminDashboard'; // ← ADD THIS
+import AdminDashboard from './pages/AdminDashboard'; // ✅ Import AdminDashboard
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
 import { getProfile } from './services/api';
@@ -33,16 +33,22 @@ function App() {
     if (token) {
       try {
         const { data } = await getProfile();
+        console.log('✅ User loaded:', data);
         setUser(data);
       } catch (error) {
         console.error('Auth check failed:', error);
         localStorage.removeItem('token');
+        setUser(null);
       }
+    } else {
+      console.log('ℹ️ No token found');
+      setUser(null);
     }
     setLoading(false);
   };
 
   const handleLogin = (userData) => {
+    console.log('✅ User logged in:', userData);
     setUser(userData);
   };
 
@@ -55,16 +61,16 @@ function App() {
     return <LoadingSpinner />;
   }
 
+  console.log('👤 Current user in App:', user);
+  console.log('👤 User role:', user?.role);
+
   return (
     <ErrorBoundary>
       <Router>
-        <div className="App" style={{ 
-  minHeight: '100vh',
-  background: 'linear-gradient(135deg, #F8F9FE 0%, #EDF0FA 100%)'
-}}>
-  <Navbar user={user} onLogout={handleLogout} />
-  <main>
-    <Routes>
+        <div className="App">
+          <Navbar user={user} onLogout={handleLogout} />
+          <main>
+            <Routes>
               <Route path="/" element={<Home user={user} />} />
               <Route 
                 path="/login" 
@@ -92,14 +98,45 @@ function App() {
               <Route path="/about" element={<About user={user} />} />
               <Route path="/contact" element={<Contact />} />
               
-              {/* ← ADD THIS ROUTE */}
-             <Route 
-  path="/admin" 
-  element={user && user.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" />} 
-/>
+              {/* ✅ FIXED ADMIN ROUTE */}
+              <Route 
+                path="/admin" 
+                element={
+                  (() => {
+                    console.log('🔍 Admin route check:', { 
+                      userExists: !!user, 
+                      role: user?.role,
+                      isAdmin: user?.role === 'admin'
+                    });
+                    
+                    if (!user) {
+                      console.log('❌ No user - redirecting to login');
+                      return <Navigate to="/login" />;
+                    }
+                    
+                    if (user.role === 'admin') {
+                      console.log('✅ User is admin - showing dashboard');
+                      return <AdminDashboard />;
+                    }
+                    
+                    console.log('❌ User is not admin - redirecting to home');
+                    return <Navigate to="/" />;
+                  })()
+                } 
+              />
             </Routes>
           </main>
-          <ToastContainer />
+          <ToastContainer 
+            position="bottom-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+          />
         </div>
       </Router>
     </ErrorBoundary>
