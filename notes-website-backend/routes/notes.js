@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import Note from '../models/Note.js';
-import { auth } from '../middleware/auth.js';
+import { auth, adminAuth } from '../middleware/auth.js';  // ✅ ADD adminAuth here
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -143,6 +143,90 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
   });
 });
 
+// ============ GET USER'S NOTES ============
+router.get('/user/my-notes', auth, async (req, res) => {
+  try {
+    console.log('📥 Fetching notes for user:', req.user.id);
+    
+    const notes = await Note.find({ uploadedBy: req.user.id })
+      .sort({ createdAt: -1 })
+      .populate('uploadedBy', 'name email');
+    
+    console.log('✅ Found', notes.length, 'notes for user');
+    
+    res.json({
+      success: true,
+      count: notes.length,
+      notes: notes
+    });
+  } catch (error) {
+    console.error('❌ Get user notes error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to load user notes',
+      error: error.message 
+    });
+  }
+});
+
+// ============ GET ALL NOTES (PUBLIC) ============
+router.get('/', async (req, res) => {
+  try {
+    const { semester, branch, subject, course } = req.query;
+    const filter = { status: 'approved' };
+    
+    if (semester) filter.semester = parseInt(semester);
+    if (branch) filter.branch = branch;
+    if (subject) filter.subject = subject;
+    if (course) filter.course = course;
+    
+    const notes = await Note.find(filter)
+      .populate('uploadedBy', 'name email')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      count: notes.length,
+      notes
+    });
+  } catch (error) {
+    console.error('❌ Get notes error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error' 
+    });
+  }
+});
+
+// ============ GET SINGLE NOTE ============
+router.get('/:id', async (req, res) => {
+  try {
+    const note = await Note.findById(req.params.id)
+      .populate('uploadedBy', 'name email');
+    
+    if (!note) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Note not found' 
+      });
+    }
+    
+    note.views += 1;
+    await note.save({ validateBeforeSave: false });
+    
+    res.json({
+      success: true,
+      note
+    });
+  } catch (error) {
+    console.error('❌ Get note error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error' 
+    });
+  }
+});
+
 // ============ ADMIN ROUTES ============
 
 // Get all pending notes (admin only)
@@ -233,90 +317,6 @@ router.put('/:id/reject', auth, adminAuth, async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: 'Failed to reject note' 
-    });
-  }
-});
-
-// ============ GET USER'S NOTES ============
-router.get('/user/my-notes', auth, async (req, res) => {
-  try {
-    console.log('📥 Fetching notes for user:', req.user.id);
-    
-    const notes = await Note.find({ uploadedBy: req.user.id })
-      .sort({ createdAt: -1 })
-      .populate('uploadedBy', 'name email');
-    
-    console.log('✅ Found', notes.length, 'notes for user');
-    
-    res.json({
-      success: true,
-      count: notes.length,
-      notes: notes
-    });
-  } catch (error) {
-    console.error('❌ Get user notes error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to load user notes',
-      error: error.message 
-    });
-  }
-});
-
-// ============ GET ALL NOTES (PUBLIC) ============
-router.get('/', async (req, res) => {
-  try {
-    const { semester, branch, subject, course } = req.query;
-    const filter = { status: 'approved' };
-    
-    if (semester) filter.semester = parseInt(semester);
-    if (branch) filter.branch = branch;
-    if (subject) filter.subject = subject;
-    if (course) filter.course = course;
-    
-    const notes = await Note.find(filter)
-      .populate('uploadedBy', 'name email')
-      .sort({ createdAt: -1 });
-    
-    res.json({
-      success: true,
-      count: notes.length,
-      notes
-    });
-  } catch (error) {
-    console.error('❌ Get notes error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Internal server error' 
-    });
-  }
-});
-
-// ============ GET SINGLE NOTE ============
-router.get('/:id', async (req, res) => {
-  try {
-    const note = await Note.findById(req.params.id)
-      .populate('uploadedBy', 'name email');
-    
-    if (!note) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Note not found' 
-      });
-    }
-    
-    note.views += 1;
-    await note.save({ validateBeforeSave: false });
-    
-    res.json({
-      success: true,
-      note
-    });
-  } catch (error) {
-    console.error('❌ Get note error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Internal server error' 
     });
   }
 });
