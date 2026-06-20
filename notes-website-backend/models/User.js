@@ -23,18 +23,27 @@ const userSchema = new mongoose.Schema(
       minlength: [6, 'Password must be at least 6 characters'],
       select: false
     },
+    // ✅ FIX: Make mobile optional
     mobile: {
       type: String,
       trim: true,
-      match: [/^[0-9]{10}$/, 'Please provide a valid 10-digit mobile number']
+      match: [/^[0-9]{10}$/, 'Please provide a valid 10-digit mobile number'],
+      required: false,
+      default: undefined
     },
+    // ✅ FIX: Make address optional
     address: {
       type: String,
-      trim: true
+      trim: true,
+      required: false,
+      default: undefined
     },
+    // ✅ FIX: Make city optional
     city: {
       type: String,
-      trim: true
+      trim: true,
+      required: false,
+      default: undefined
     },
     gender: {
       type: String,
@@ -55,20 +64,28 @@ const userSchema = new mongoose.Schema(
     },
     bio: {
       type: String,
-      maxlength: [500, 'Bio cannot exceed 500 characters']
+      maxlength: [500, 'Bio cannot exceed 500 characters'],
+      required: false,
+      default: undefined
     },
     institution: {
       type: String,
-      trim: true
+      trim: true,
+      required: false,
+      default: undefined
     },
     course: {
       type: String,
-      trim: true
+      trim: true,
+      required: false,
+      default: undefined
     },
     graduationYear: {
       type: Number,
       min: [1900, 'Invalid year'],
-      max: [2100, 'Invalid year']
+      max: [2100, 'Invalid year'],
+      required: false,
+      default: undefined
     },
     isVerified: {
       type: Boolean,
@@ -101,12 +118,12 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-// Compare password method (used in login)
+// Compare password method
 userSchema.methods.correctPassword = async function (candidatePassword, userPassword) {
   return await bcrypt.compare(candidatePassword, userPassword);
 };
 
-// Virtual for full name (if needed)
+// Virtual for full name
 userSchema.virtual('fullName').get(function() {
   return this.name;
 });
