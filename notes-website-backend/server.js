@@ -9,7 +9,6 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 import userRoutes from './routes/users.js';
 import noteRoutes from './routes/notes.js';
 import fs from 'fs';
-import path from 'path';
 
 
 const __filename = fileURLToPath(import.meta.url);
