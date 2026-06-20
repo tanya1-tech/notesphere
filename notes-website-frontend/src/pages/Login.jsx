@@ -26,6 +26,7 @@ const Login = ({ onLogin }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // ✅ Validation
     const newErrors = {};
     if (!formData.email) newErrors.email = 'Email is required';
     if (!formData.password) newErrors.password = 'Password is required';
@@ -37,13 +38,26 @@ const Login = ({ onLogin }) => {
 
     setLoading(true);
     try {
-      const { data } = await login(formData);
-      localStorage.setItem('token', data.token);
-      onLogin(data.user);
+      const response = await login(formData);
+      console.log('📥 Login response:', response);
+      
+      // ✅ Extract user from response
+      const userData = response.data?.user || response.data;
+      console.log('👤 User from login:', userData);
+      console.log('👤 User role:', userData?.role);
+      
+      // ✅ Store token and user
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      // ✅ Pass user to App
+      onLogin(userData);
+      
       toast.success('Login successful! 🎉');
       navigate('/dashboard');
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
+      console.error('❌ Error response:', error.response);
       toast.error(error.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);

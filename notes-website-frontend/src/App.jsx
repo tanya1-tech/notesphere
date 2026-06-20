@@ -14,7 +14,7 @@ import PDFViewer from './pages/PDFViewer';
 import Courses from './pages/Courses';
 import About from './pages/About';
 import Contact from './pages/Contact';
-import AdminDashboard from './pages/AdminDashboard'; // ✅ Import AdminDashboard
+import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
 import { getProfile } from './services/api';
@@ -32,16 +32,34 @@ function App() {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        const { data } = await getProfile();
-        console.log('✅ User loaded:', data);
-        setUser(data);
+        const response = await getProfile();
+        console.log('📥 Full response:', response);
+        
+        // ✅ Extract user from response
+        const userData = response.data?.user || response.data;
+        console.log('👤 User data:', userData);
+        console.log('👤 User role:', userData?.role);
+        
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
       } catch (error) {
         console.error('Auth check failed:', error);
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
         setUser(null);
       }
     } else {
       console.log('ℹ️ No token found');
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          console.log('📦 User from localStorage:', parsedUser);
+          setUser(parsedUser);
+        } catch (e) {
+          localStorage.removeItem('user');
+        }
+      }
       setUser(null);
     }
     setLoading(false);
@@ -49,11 +67,14 @@ function App() {
 
   const handleLogin = (userData) => {
     console.log('✅ User logged in:', userData);
+    console.log('✅ User role:', userData?.role);
     setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setUser(null);
   };
 
@@ -98,7 +119,7 @@ function App() {
               <Route path="/about" element={<About user={user} />} />
               <Route path="/contact" element={<Contact />} />
               
-              {/* ✅ FIXED ADMIN ROUTE */}
+              {/* ✅ ADMIN ROUTE */}
               <Route 
                 path="/admin" 
                 element={
