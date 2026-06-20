@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema(
   {
+    // ===== REQUIRED FIELDS =====
     name: {
       type: String,
       required: [true, 'Name is required'],
@@ -23,22 +24,22 @@ const userSchema = new mongoose.Schema(
       minlength: [6, 'Password must be at least 6 characters'],
       select: false
     },
-    // ✅ FIX: Make mobile optional
+
+    // ===== OPTIONAL FIELDS (ALL marked required: false) =====
     mobile: {
       type: String,
       trim: true,
       match: [/^[0-9]{10}$/, 'Please provide a valid 10-digit mobile number'],
       required: false,
-      default: undefined
+      default: undefined,
+      sparse: true
     },
-    // ✅ FIX: Make address optional
     address: {
       type: String,
       trim: true,
       required: false,
       default: undefined
     },
-    // ✅ FIX: Make city optional
     city: {
       type: String,
       trim: true,
@@ -47,11 +48,9 @@ const userSchema = new mongoose.Schema(
     },
     gender: {
       type: String,
-      enum: {
-        values: ['male', 'female', 'other', 'prefer-not-to-say'],
-        message: 'Invalid gender option'
-      },
-      default: 'prefer-not-to-say'
+      enum: ['male', 'female', 'other', 'prefer-not-to-say'],
+      required: false,
+      default: undefined
     },
     role: {
       type: String,
@@ -105,7 +104,7 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Hash password BEFORE saving
+// ============ HASH PASSWORD ============
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
 
@@ -118,17 +117,17 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-// Compare password method
+// ============ COMPARE PASSWORD ============
 userSchema.methods.correctPassword = async function (candidatePassword, userPassword) {
   return await bcrypt.compare(candidatePassword, userPassword);
 };
 
-// Virtual for full name
+// ============ VIRTUAL FIELDS ============
 userSchema.virtual('fullName').get(function() {
   return this.name;
 });
 
-// Instance method to get user stats
+// ============ INSTANCE METHODS ============
 userSchema.methods.getStats = async function() {
   const Note = mongoose.model('Note');
   const notesCount = await Note.countDocuments({ uploadedBy: this._id });
@@ -143,7 +142,7 @@ userSchema.methods.getStats = async function() {
   };
 };
 
-// Static method to find user by email
+// ============ STATIC METHODS ============
 userSchema.statics.findByEmail = function(email) {
   return this.findOne({ email: email.toLowerCase() });
 };
