@@ -4,32 +4,47 @@ import User from '../models/User.js';
 import { auth, adminAuth } from '../middleware/auth.js';
 import { validateRegister, validateLogin } from '../middleware/validate.js';
 import { strictLimiter } from '../middleware/rateLimiter.js';
-import { register, login, getProfile } from '../controllers/userController.js';
-
 
 const router = express.Router();
 
+// ============ REGISTER ============
 // Register with strict rate limiting and validation
 router.post('/register', strictLimiter, validateRegister, async (req, res) => {
   try {
     const { name, email, password, mobile, address, city, gender } = req.body;
 
-    // Check if user already exists
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({ message: 'User already exists with this email' });
+    // ✅ Validate required fields
+    if (!name || !email || !password) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Name, email, and password are required' 
+      });
     }
 
+    // ✅ Check if user already exists
+    const userExists = await User.findOne({ email: email.toLowerCase() });
+    if (userExists) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'User already exists with this email' 
+      });
+    }
+
+    // ✅ Create user data object (only include fields that exist in schema)
+    const userData = {
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      password
+    };
+
+    // ✅ Add optional fields only if provided
+    if (mobile) userData.mobile = mobile;
+    if (address) userData.address = address;
+    if (city) userData.city = city;
+    if (gender) userData.gender = gender;
+
     // Create new user
-    const user = await User.create({
-      name,
-      email,
-      password,
-      mobile,
-      address,
-      city,
-      gender
-    });
+    const user = await User.create(userData);
 
     // Generate JWT token
     const token = jwt.sign(
@@ -39,6 +54,7 @@ router.post('/register', strictLimiter, validateRegister, async (req, res) => {
     );
 
     res.status(201).json({
+      success: true,
       message: 'User registered successfully',
       token,
       user: {
@@ -49,33 +65,68 @@ router.post('/register', strictLimiter, validateRegister, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('❌ Registration error:', error);
     
+    // ✅ Handle validation errors
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ message: errors.join(', ') });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Validation failed',
+        errors 
+      });
     }
     
-    res.status(500).json({ message: 'Server error during registration' });
+    // ✅ Handle duplicate key error
+    if (error.code === 11000) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email already exists' 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error during registration' 
+    });
   }
 });
 
+// ============ LOGIN ============
 // Login with strict rate limiting and validation
 router.post('/login', strictLimiter, validateLogin, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check if user exists
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+    // ✅ Validate required fields
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email and password are required' 
+      });
     }
 
-    // Check password
+    // ✅ Check if user exists
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    if (!user) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid email or password' 
+      });
+    }
+
+    // ✅ Check password
     const isPasswordValid = await user.correctPassword(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid email or password' 
+      });
     }
+
+    // ✅ Update last login
+    user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
 
     // Generate JWT token
     const token = jwt.sign(
@@ -85,70 +136,265 @@ router.post('/login', strictLimiter, validateLogin, async (req, res) => {
     );
 
     res.json({
+      success: true,
       message: 'Login successful',
       token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        profileImage: user.profileImage
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Server error during login' });
+    console.error('❌ Login error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error during login' 
+    });
   }
 });
 
+// ============ GET PROFILE ============
 // Get user profile (protected)
 router.get('/profile', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
     
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
 
-    res.json(user);
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        mobile: user.mobile,
+        address: user.address,
+        city: user.city,
+        gender: user.gender,
+        role: user.role,
+        profileImage: user.profileImage,
+        bio: user.bio,
+        institution: user.institution,
+        course: user.course,
+        graduationYear: user.graduationYear,
+        isVerified: user.isVerified,
+        lastLogin: user.lastLogin,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }
+    });
   } catch (error) {
-    console.error('Profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Profile error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
   }
 });
 
+// ============ UPDATE PROFILE ============
 // Update user profile (protected)
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { name, mobile, address, city, gender } = req.body;
+    const { name, mobile, address, city, gender, bio, institution, course, graduationYear } = req.body;
+    
+    // ✅ Build update object with only provided fields
+    const updateData = {};
+    if (name) updateData.name = name.trim();
+    if (mobile) updateData.mobile = mobile;
+    if (address) updateData.address = address;
+    if (city) updateData.city = city;
+    if (gender) updateData.gender = gender;
+    if (bio) updateData.bio = bio;
+    if (institution) updateData.institution = institution;
+    if (course) updateData.course = course;
+    if (graduationYear) updateData.graduationYear = graduationYear;
     
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { name, mobile, address, city, gender },
+      updateData,
       { new: true, runValidators: true }
     ).select('-password');
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
 
     res.json({
+      success: true,
       message: 'Profile updated successfully',
-      user
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        mobile: user.mobile,
+        address: user.address,
+        city: user.city,
+        gender: user.gender,
+        role: user.role,
+        profileImage: user.profileImage,
+        bio: user.bio,
+        institution: user.institution,
+        course: user.course,
+        graduationYear: user.graduationYear,
+        isVerified: user.isVerified,
+        lastLogin: user.lastLogin,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }
     });
   } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Update profile error:', error);
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        success: false,
+        message: 'Validation failed',
+        errors 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
   }
 });
 
+// ============ CHANGE PASSWORD ============
+// Change password (protected)
+router.put('/change-password', auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Current password and new password are required' 
+      });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'New password must be at least 6 characters' 
+      });
+    }
+    
+    const user = await User.findById(req.user.id).select('+password');
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+    }
+    
+    // ✅ Verify current password
+    const isMatch = await user.correctPassword(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Current password is incorrect' 
+      });
+    }
+    
+    // ✅ Update password (will be hashed by pre-save hook)
+    user.password = newPassword;
+    await user.save();
+    
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('❌ Change password error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
+  }
+});
+
+// ============ GET ALL USERS (ADMIN ONLY) ============
 // Get all users (admin only)
 router.get('/', auth, adminAuth, async (req, res) => {
   try {
     const users = await User.find().select('-password');
-    res.json(users);
+    res.json({
+      success: true,
+      count: users.length,
+      users
+    });
   } catch (error) {
-    console.error('Get users error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Get users error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
+  }
+});
+
+// ============ GET USER BY ID (ADMIN ONLY) ============
+// Get single user by ID (admin only)
+router.get('/:id', auth, adminAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      user
+    });
+  } catch (error) {
+    console.error('❌ Get user error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
+  }
+});
+
+// ============ DELETE USER (ADMIN ONLY) ============
+// Delete user (admin only)
+router.delete('/:id', auth, adminAuth, async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('❌ Delete user error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
   }
 });
 
