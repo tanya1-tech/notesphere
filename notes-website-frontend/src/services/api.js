@@ -48,6 +48,7 @@ export const getProfile = () => API.get('/users/profile');
 export const updateProfile = (formData) => API.put('/users/profile', formData);
 
 // Notes APIs
+// ============ NOTES APIs ============
 export const getNotes = (filters = {}) => {
   const cleanFilters = Object.fromEntries(
     Object.entries(filters).filter(([_, value]) => value !== '' && value !== undefined && value !== null)
@@ -56,6 +57,7 @@ export const getNotes = (filters = {}) => {
 };
 
 export const getNote = (id) => API.get(`/notes/${id}`);
+
 export const uploadNote = (formData, config = {}) => {
   return API.post('/notes/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -69,7 +71,7 @@ export const downloadNote = (id) => API.get(`/notes/${id}/download`, {
 
 export const deleteNote = (id) => API.delete(`/notes/${id}`);
 
-export const getUserNotes = () => API.get('/notes/user/my-notes');
+export const getUserNotes = () => API.get('/notes/user/my-notes');  // ✅ This is correct
 
 // Course APIs
 export const getCourseNotes = (courseName, filters = {}) => 

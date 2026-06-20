@@ -14,8 +14,6 @@ const router = express.Router();
 
 // ============ ENSURE UPLOADS DIRECTORY EXISTS ============
 const uploadDir = path.join(__dirname, '../uploads');
-
-// Create uploads directory if it doesn't exist
 if (!fs.existsSync(uploadDir)) {
   try {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -31,14 +29,12 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    // Generate unique filename with timestamp
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const originalName = file.originalname.replace(/\s+/g, '_');
     cb(null, uniqueSuffix + '-' + originalName);
   }
 });
 
-// File filter - only allow PDFs
 const fileFilter = (req, file, cb) => {
   if (file.mimetype === 'application/pdf') {
     cb(null, true);
@@ -47,25 +43,18 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Create multer instance with 30MB limit
 const upload = multer({
   storage: storage,
-  limits: {
-    fileSize: 30 * 1024 * 1024 // 30MB
-  },
+  limits: { fileSize: 30 * 1024 * 1024 },
   fileFilter: fileFilter
 });
 
 // ============ UPLOAD NOTE ============
 router.post('/upload', auth, uploadLimiter, (req, res) => {
-  // Use multer with error handling
   upload.single('file')(req, res, async function(err) {
     try {
       console.log('📤 Upload request received');
-      console.log('📝 Body:', req.body);
-      console.log('👤 User:', req.user?.id);
-
-      // ✅ Handle multer errors
+      
       if (err instanceof multer.MulterError) {
         if (err.code === 'FILE_TOO_LARGE') {
           return res.status(400).json({ 
@@ -73,7 +62,6 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
             message: 'File size exceeds 30MB limit' 
           });
         }
-        console.error('❌ Multer error:', err);
         return res.status(400).json({ 
           success: false,
           message: err.message 
@@ -81,14 +69,12 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       }
       
       if (err) {
-        console.error('❌ Upload error:', err);
         return res.status(400).json({ 
           success: false,
           message: err.message 
         });
       }
 
-      // ✅ Check if file was uploaded
       if (!req.file) {
         return res.status(400).json({ 
           success: false,
@@ -97,33 +83,22 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       }
 
       console.log('📄 File uploaded:', req.file.filename);
-      console.log('📏 File size:', req.file.size);
 
-      // ✅ Parse tags from string to array
       let tags = [];
       if (req.body.tags) {
         tags = req.body.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
       }
 
-      // ✅ Validate required fields
       const { title, description, subject, semester, branch, course } = req.body;
       
       if (!title || !description || !subject || !semester || !branch || !course) {
-        // Delete uploaded file if validation fails
-        try {
-          fs.unlinkSync(req.file.path);
-          console.log('🗑️ Deleted uploaded file due to validation error');
-        } catch (unlinkErr) {
-          console.error('❌ Error deleting file:', unlinkErr);
-        }
-        
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
         return res.status(400).json({ 
           success: false,
-          message: 'Missing required fields: title, description, subject, semester, branch, course are required' 
+          message: 'Missing required fields' 
         });
       }
 
-      // ✅ Create note
       const note = new Note({
         title: title.trim(),
         description: description.trim(),
@@ -141,7 +116,6 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       });
 
       await note.save();
-
       console.log('✅ Note created:', note._id);
 
       res.status(201).json({
@@ -157,27 +131,9 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
 
     } catch (error) {
       console.error('❌ Upload error:', error);
-      
-      // ✅ Delete uploaded file if there was an error
       if (req.file) {
-        try {
-          fs.unlinkSync(req.file.path);
-          console.log('🗑️ Deleted uploaded file due to error');
-        } catch (unlinkErr) {
-          console.error('❌ Error deleting file:', unlinkErr);
-        }
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
       }
-
-      // ✅ Handle validation errors
-      if (error.name === 'ValidationError') {
-        const errors = Object.values(error.errors).map(err => err.message);
-        return res.status(400).json({ 
-          success: false,
-          message: 'Validation failed',
-          errors 
-        });
-      }
-
       res.status(500).json({ 
         success: false,
         message: 'Internal server error',
@@ -190,19 +146,25 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
 // ============ GET USER'S NOTES ============
 router.get('/user/my-notes', auth, async (req, res) => {
   try {
+    console.log('📥 Fetching notes for user:', req.user.id);
+    
     const notes = await Note.find({ uploadedBy: req.user.id })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .populate('uploadedBy', 'name email');
+    
+    console.log('✅ Found', notes.length, 'notes for user');
     
     res.json({
       success: true,
       count: notes.length,
-      notes
+      notes: notes
     });
   } catch (error) {
     console.error('❌ Get user notes error:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Internal server error' 
+      message: 'Failed to load user notes',
+      error: error.message 
     });
   }
 });
@@ -249,7 +211,6 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    // Increment views
     note.views += 1;
     await note.save({ validateBeforeSave: false });
     

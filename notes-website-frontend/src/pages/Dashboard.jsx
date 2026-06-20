@@ -17,44 +17,46 @@ const Dashboard = ({ user }) => {
   }, []);
 
   const loadUserNotes = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      
-      // Fix: Use the correct API endpoint
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/notes/user/my-notes`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        // Handle different response formats
-        const notes = data.notes || data || [];
-        setUserNotes(notes);
-        
-        // Calculate stats from user's notes
-        const stats = {
-          notesUploaded: notes.length,
-          totalDownloads: notes.reduce((sum, note) => sum + (note.downloads || 0), 0),
-          totalViews: notes.reduce((sum, note) => sum + (note.views || 0), 0),
-          reputation: notes.length * 5
-        };
-        setUserStats(stats);
-      } else {
-        const error = await response.json();
-        console.error('Failed to load user notes:', error);
-        toast.error('Failed to load your notes');
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    
+    console.log('📥 Fetching user notes...');
+    
+    const response = await fetch(`${API_URL}/api/notes/user/my-notes`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
       }
-    } catch (error) {
-      console.error('Error loading user notes:', error);
-      toast.error('Error loading your notes');
-    } finally {
-      setLoading(false);
+    });
+    
+    console.log('📥 Response status:', response.status);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('📥 Notes data:', data);
+      
+      const notes = data.notes || [];
+      setUserNotes(notes);
+      
+      const stats = {
+        notesUploaded: notes.length,
+        totalDownloads: notes.reduce((sum, note) => sum + (note.downloads || 0), 0),
+        totalViews: notes.reduce((sum, note) => sum + (note.views || 0), 0),
+        reputation: notes.length * 5
+      };
+      setUserStats(stats);
+    } else {
+      const error = await response.json();
+      console.error('❌ Failed to load notes:', error);
+      toast.error(error.message || 'Failed to load your notes');
     }
-  };
-
+  } catch (error) {
+    console.error('❌ Error loading user notes:', error);
+    toast.error('Error loading your notes');
+  } finally {
+    setLoading(false);
+  }
+};
   const recentNotes = userNotes.slice(0, 3);
 
   const popularSubjects = [
