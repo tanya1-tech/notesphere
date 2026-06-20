@@ -7,11 +7,13 @@ export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
     
+    console.log('📥 Registration attempt:', { name, email });
+
     // ✅ Validate required fields
     if (!name || !email || !password) {
       return res.status(400).json({ 
         success: false,
-        message: 'Missing required fields: name, email, and password are required' 
+        message: 'Name, email, and password are required' 
       });
     }
 
@@ -31,34 +33,36 @@ export const register = async (req, res) => {
         message: 'Password must be at least 6 characters' 
       });
     }
-    
+
     // ✅ Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({ 
         success: false,
-        message: 'User already exists' 
+        message: 'User already exists with this email' 
       });
     }
-    
+
     // ✅ Create user
     const user = new User({
       name: name.trim(),
       email: email.toLowerCase().trim(),
-      password // Will be hashed by pre-save hook
+      password
     });
-    
+
     await user.save();
-    
+    console.log('✅ User created:', user._id);
+
     // ✅ Generate token
     const token = jwt.sign(
       { id: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '30d' }
     );
-    
+
     res.status(201).json({
       success: true,
+      message: 'User registered successfully',
       token,
       user: {
         id: user._id,
@@ -68,11 +72,11 @@ export const register = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Register error:', error);
+    console.error('❌ Registration error:', error);
     
     // ✅ Handle validation errors
     if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(e => e.message);
+      const errors = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({ 
         success: false,
         message: 'Validation failed',
@@ -90,7 +94,8 @@ export const register = async (req, res) => {
     
     res.status(500).json({ 
       success: false,
-      message: error.message || 'Internal server error' 
+      message: 'Server error during registration',
+      error: error.message 
     });
   }
 };
@@ -100,6 +105,8 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     
+    console.log('📥 Login attempt:', { email });
+
     // ✅ Validate required fields
     if (!email || !password) {
       return res.status(400).json({ 
@@ -108,7 +115,7 @@ export const login = async (req, res) => {
       });
     }
     
-    // ✅ Find user with password field
+    // ✅ Find user
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     if (!user) {
       return res.status(401).json({ 
@@ -118,7 +125,7 @@ export const login = async (req, res) => {
     }
     
     // ✅ Check password
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await user.correctPassword(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ 
         success: false,
@@ -134,11 +141,12 @@ export const login = async (req, res) => {
     const token = jwt.sign(
       { id: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '30d' }
     );
     
     res.json({
       success: true,
+      message: 'Login successful',
       token,
       user: {
         id: user._id,
@@ -152,7 +160,7 @@ export const login = async (req, res) => {
     console.error('❌ Login error:', error);
     res.status(500).json({ 
       success: false,
-      message: error.message || 'Internal server error' 
+      message: 'Server error during login' 
     });
   }
 };
@@ -160,30 +168,31 @@ export const login = async (req, res) => {
 // ============ GET PROFILE ============
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).select('-password');
+    
     if (!user) {
       return res.status(404).json({ 
         success: false,
         message: 'User not found' 
       });
     }
-    
+
     res.json({
       success: true,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        mobile: user.mobile,
-        address: user.address,
-        city: user.city,
-        gender: user.gender,
+        mobile: user.mobile || '',
+        address: user.address || '',
+        city: user.city || '',
+        gender: user.gender || '',
         role: user.role,
         profileImage: user.profileImage,
-        bio: user.bio,
-        institution: user.institution,
-        course: user.course,
-        graduationYear: user.graduationYear,
+        bio: user.bio || '',
+        institution: user.institution || '',
+        course: user.course || '',
+        graduationYear: user.graduationYear || '',
         isVerified: user.isVerified,
         lastLogin: user.lastLogin,
         createdAt: user.createdAt,
@@ -194,7 +203,7 @@ export const getProfile = async (req, res) => {
     console.error('❌ Get profile error:', error);
     res.status(500).json({ 
       success: false,
-      message: error.message || 'Internal server error' 
+      message: 'Server error' 
     });
   }
 };
@@ -202,39 +211,33 @@ export const getProfile = async (req, res) => {
 // ============ UPDATE PROFILE ============
 export const updateProfile = async (req, res) => {
   try {
-    const { 
-      name, 
-      mobile, 
-      address, 
-      city, 
-      gender, 
-      bio, 
-      institution, 
-      course, 
-      graduationYear 
-    } = req.body;
+    const { name, mobile, address, city, gender, bio, institution, course, graduationYear } = req.body;
     
-    const user = await User.findById(req.user.id);
+    // ✅ Build update object
+    const updateData = {};
+    if (name) updateData.name = name.trim();
+    if (mobile) updateData.mobile = mobile;
+    if (address) updateData.address = address;
+    if (city) updateData.city = city;
+    if (gender) updateData.gender = gender;
+    if (bio) updateData.bio = bio;
+    if (institution) updateData.institution = institution;
+    if (course) updateData.course = course;
+    if (graduationYear) updateData.graduationYear = graduationYear;
+    
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).select('-password');
+
     if (!user) {
       return res.status(404).json({ 
         success: false,
         message: 'User not found' 
       });
     }
-    
-    // ✅ Update fields
-    if (name) user.name = name.trim();
-    if (mobile) user.mobile = mobile;
-    if (address) user.address = address;
-    if (city) user.city = city;
-    if (gender) user.gender = gender;
-    if (bio) user.bio = bio;
-    if (institution) user.institution = institution;
-    if (course) user.course = course;
-    if (graduationYear) user.graduationYear = graduationYear;
-    
-    await user.save();
-    
+
     res.json({
       success: true,
       message: 'Profile updated successfully',
@@ -242,16 +245,16 @@ export const updateProfile = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        mobile: user.mobile,
-        address: user.address,
-        city: user.city,
-        gender: user.gender,
+        mobile: user.mobile || '',
+        address: user.address || '',
+        city: user.city || '',
+        gender: user.gender || '',
         role: user.role,
         profileImage: user.profileImage,
-        bio: user.bio,
-        institution: user.institution,
-        course: user.course,
-        graduationYear: user.graduationYear,
+        bio: user.bio || '',
+        institution: user.institution || '',
+        course: user.course || '',
+        graduationYear: user.graduationYear || '',
         isVerified: user.isVerified,
         lastLogin: user.lastLogin,
         createdAt: user.createdAt,
@@ -262,7 +265,7 @@ export const updateProfile = async (req, res) => {
     console.error('❌ Update profile error:', error);
     
     if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(e => e.message);
+      const errors = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({ 
         success: false,
         message: 'Validation failed',
@@ -272,7 +275,7 @@ export const updateProfile = async (req, res) => {
     
     res.status(500).json({ 
       success: false,
-      message: error.message || 'Internal server error' 
+      message: 'Server error' 
     });
   }
 };
@@ -305,7 +308,7 @@ export const changePassword = async (req, res) => {
     }
     
     // ✅ Verify current password
-    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    const isMatch = await user.correctPassword(currentPassword, user.password);
     if (!isMatch) {
       return res.status(401).json({ 
         success: false,
@@ -325,7 +328,7 @@ export const changePassword = async (req, res) => {
     console.error('❌ Change password error:', error);
     res.status(500).json({ 
       success: false,
-      message: error.message || 'Internal server error' 
+      message: 'Server error' 
     });
   }
 };
