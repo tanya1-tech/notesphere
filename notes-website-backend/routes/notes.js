@@ -1,263 +1,268 @@
 import express from 'express';
+import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import Note from '../models/Note.js';
-import { auth, adminAuth } from '../middleware/auth.js';
-import { validateNoteUpload, validateNoteFilters, validateId } from '../middleware/validate.js';
-import { uploadLimiter, downloadLimiter } from '../middleware/rateLimiter.js';
-import { upload, handleUploadError } from '../middleware/upload.js';
 import { fileURLToPath } from 'url';
+import Note from '../models/Note.js';
+import { auth } from '../middleware/auth.js';
+import { uploadLimiter } from '../middleware/rateLimiter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-// Upload note (protected, with rate limiting and validation)
-router.post(
-  '/upload', 
-  auth, 
-  uploadLimiter, 
-  upload.single('file'), 
-  handleUploadError,
-  validateNoteUpload, 
-  async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: 'Please upload a PDF file' });
-      }
-      
-      const { title, description, subject, semester, branch, course, courseCode, credits, tags } = req.body;
+// ============ ENSURE UPLOADS DIRECTORY EXISTS ============
+const uploadDir = path.join(__dirname, '../uploads');
 
-      // Create note
-      const noteData = {
-        title,
-        description,
-        subject,
-        semester: parseInt(semester),
-        branch,
-        course,
-        courseCode: courseCode || '',
-        credits: credits ? parseInt(credits) : 3,
-        tags: tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
-        file: req.file.filename,
-        fileSize: req.file.size,
-        uploadedBy: req.user.id
-      };
-
-      const note = await Note.create(noteData);
-      await note.populate('uploadedBy', 'name email');
-
-      // Construct full URL for the file
-      const baseUrl = process.env.RAILWAY_STATIC_URL 
-        ? `https://${process.env.RAILWAY_STATIC_URL}`
-        : `${req.protocol}://${req.get('host')}`;
-
-      res.status(201).json({
-        message: 'Note uploaded successfully',
-        note: {
-          ...note.toObject(),
-          fileUrl: `${baseUrl}/uploads/${note.file}`
-        }
-      });
-    } catch (error) {
-      console.error('Upload error:', error);
-      
-      if (error.name === 'ValidationError') {
-        const errors = Object.values(error.errors).map(err => err.message);
-        return res.status(400).json({ message: errors.join(', ') });
-      }
-      
-      res.status(500).json({ message: error.message });
-    }
-  }
-);
-
-// Get all notes with filters
-router.get('/', validateNoteFilters, async (req, res) => {
+// Create uploads directory if it doesn't exist
+if (!fs.existsSync(uploadDir)) {
   try {
-    const { semester, branch, subject, course, page = 1, limit = 20, search } = req.query;
-    
-    let query = { status: 'approved' };
-    
-    if (semester) query.semester = parseInt(semester);
-    if (branch) query.branch = new RegExp(branch, 'i');
-    if (course) query.course = new RegExp(course, 'i');
-    if (subject) query.subject = new RegExp(subject, 'i');
-    
-    if (search) {
-      query.$or = [
-        { title: new RegExp(search, 'i') },
-        { subject: new RegExp(search, 'i') },
-        { description: new RegExp(search, 'i') },
-        { tags: new RegExp(search, 'i') }
-      ];
-    }
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('📁 Uploads directory created:', uploadDir);
+  } catch (err) {
+    console.error('❌ Failed to create uploads directory:', err);
+  }
+}
 
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 20;
-    const skip = (pageNum - 1) * limitNum;
-
-    const [notes, total] = await Promise.all([
-      Note.find(query)
-        .populate('uploadedBy', 'name email')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNum),
-      Note.countDocuments(query)
-    ]);
-
-    // Add file URLs
-    const baseUrl = process.env.RAILWAY_STATIC_URL 
-      ? `https://${process.env.RAILWAY_STATIC_URL}`
-      : `${req.protocol}://${req.get('host')}`;
-
-    const notesWithUrls = notes.map(note => ({
-      ...note.toObject(),
-      fileUrl: `${baseUrl}/uploads/${note.file}`
-    }));
-
-    res.json({
-      notes: notesWithUrls,
-      pagination: {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(total / limitNum),
-        hasNext: pageNum < Math.ceil(total / limitNum),
-        hasPrev: pageNum > 1
-      }
-    });
-  } catch (error) {
-    console.error('Get notes error:', error);
-    res.status(500).json({ message: error.message });
+// ============ MULTER CONFIGURATION ============
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with timestamp
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const originalName = file.originalname.replace(/\s+/g, '_');
+    cb(null, uniqueSuffix + '-' + originalName);
   }
 });
 
-// Get user's uploaded notes (protected)
+// File filter - only allow PDFs
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype === 'application/pdf') {
+    cb(null, true);
+  } else {
+    cb(new Error('Only PDF files are allowed'), false);
+  }
+};
+
+// Create multer instance with 30MB limit
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 30 * 1024 * 1024 // 30MB
+  },
+  fileFilter: fileFilter
+});
+
+// ============ UPLOAD NOTE ============
+router.post('/upload', auth, uploadLimiter, (req, res) => {
+  // Use multer with error handling
+  upload.single('file')(req, res, async function(err) {
+    try {
+      console.log('📤 Upload request received');
+      console.log('📝 Body:', req.body);
+      console.log('👤 User:', req.user?.id);
+
+      // ✅ Handle multer errors
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'FILE_TOO_LARGE') {
+          return res.status(400).json({ 
+            success: false,
+            message: 'File size exceeds 30MB limit' 
+          });
+        }
+        console.error('❌ Multer error:', err);
+        return res.status(400).json({ 
+          success: false,
+          message: err.message 
+        });
+      }
+      
+      if (err) {
+        console.error('❌ Upload error:', err);
+        return res.status(400).json({ 
+          success: false,
+          message: err.message 
+        });
+      }
+
+      // ✅ Check if file was uploaded
+      if (!req.file) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Please upload a PDF file' 
+        });
+      }
+
+      console.log('📄 File uploaded:', req.file.filename);
+      console.log('📏 File size:', req.file.size);
+
+      // ✅ Parse tags from string to array
+      let tags = [];
+      if (req.body.tags) {
+        tags = req.body.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+      }
+
+      // ✅ Validate required fields
+      const { title, description, subject, semester, branch, course } = req.body;
+      
+      if (!title || !description || !subject || !semester || !branch || !course) {
+        // Delete uploaded file if validation fails
+        try {
+          fs.unlinkSync(req.file.path);
+          console.log('🗑️ Deleted uploaded file due to validation error');
+        } catch (unlinkErr) {
+          console.error('❌ Error deleting file:', unlinkErr);
+        }
+        
+        return res.status(400).json({ 
+          success: false,
+          message: 'Missing required fields: title, description, subject, semester, branch, course are required' 
+        });
+      }
+
+      // ✅ Create note
+      const note = new Note({
+        title: title.trim(),
+        description: description.trim(),
+        subject: subject.trim(),
+        semester: parseInt(semester),
+        branch: branch.trim(),
+        course: course.trim(),
+        courseCode: req.body.courseCode || '',
+        credits: parseInt(req.body.credits) || 3,
+        file: req.file.filename,
+        fileSize: req.file.size,
+        tags: tags,
+        uploadedBy: req.user.id,
+        status: 'pending'
+      });
+
+      await note.save();
+
+      console.log('✅ Note created:', note._id);
+
+      res.status(201).json({
+        success: true,
+        message: 'Note uploaded successfully! Waiting for approval.',
+        note: {
+          id: note._id,
+          title: note.title,
+          status: note.status,
+          file: note.file
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Upload error:', error);
+      
+      // ✅ Delete uploaded file if there was an error
+      if (req.file) {
+        try {
+          fs.unlinkSync(req.file.path);
+          console.log('🗑️ Deleted uploaded file due to error');
+        } catch (unlinkErr) {
+          console.error('❌ Error deleting file:', unlinkErr);
+        }
+      }
+
+      // ✅ Handle validation errors
+      if (error.name === 'ValidationError') {
+        const errors = Object.values(error.errors).map(err => err.message);
+        return res.status(400).json({ 
+          success: false,
+          message: 'Validation failed',
+          errors 
+        });
+      }
+
+      res.status(500).json({ 
+        success: false,
+        message: 'Internal server error',
+        error: error.message 
+      });
+    }
+  });
+});
+
+// ============ GET USER'S NOTES ============
 router.get('/user/my-notes', auth, async (req, res) => {
   try {
     const notes = await Note.find({ uploadedBy: req.user.id })
       .sort({ createdAt: -1 });
-
-    const baseUrl = process.env.RAILWAY_STATIC_URL 
-      ? `https://${process.env.RAILWAY_STATIC_URL}`
-      : `${req.protocol}://${req.get('host')}`;
-
-    const notesWithUrls = notes.map(note => ({
-      ...note.toObject(),
-      fileUrl: `${baseUrl}/uploads/${note.file}`
-    }));
-
-    res.json(notesWithUrls);
+    
+    res.json({
+      success: true,
+      count: notes.length,
+      notes
+    });
   } catch (error) {
-    console.error('Get user notes error:', error);
-    res.status(500).json({ message: error.message });
+    console.error('❌ Get user notes error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error' 
+    });
   }
 });
 
-// Get note by ID
-router.get('/:id', validateId, async (req, res) => {
+// ============ GET ALL NOTES (PUBLIC) ============
+router.get('/', async (req, res) => {
+  try {
+    const { semester, branch, subject, course } = req.query;
+    const filter = { status: 'approved' };
+    
+    if (semester) filter.semester = parseInt(semester);
+    if (branch) filter.branch = branch;
+    if (subject) filter.subject = subject;
+    if (course) filter.course = course;
+    
+    const notes = await Note.find(filter)
+      .populate('uploadedBy', 'name email')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      count: notes.length,
+      notes
+    });
+  } catch (error) {
+    console.error('❌ Get notes error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error' 
+    });
+  }
+});
+
+// ============ GET SINGLE NOTE ============
+router.get('/:id', async (req, res) => {
   try {
     const note = await Note.findById(req.params.id)
       .populate('uploadedBy', 'name email');
     
     if (!note) {
-      return res.status(404).json({ message: 'Note not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Note not found' 
+      });
     }
-
+    
+    // Increment views
     note.views += 1;
-    await note.save();
-
-    const baseUrl = process.env.RAILWAY_STATIC_URL 
-      ? `https://${process.env.RAILWAY_STATIC_URL}`
-      : `${req.protocol}://${req.get('host')}`;
-
-    res.json({
-      ...note.toObject(),
-      fileUrl: `${baseUrl}/uploads/${note.file}`
-    });
-  } catch (error) {
-    console.error('Get note error:', error);
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Download note with rate limiting
-router.get('/:id/download', downloadLimiter, validateId, async (req, res) => {
-  try {
-    const note = await Note.findById(req.params.id);
-    
-    if (!note) {
-      return res.status(404).json({ message: 'Note not found' });
-    }
-
-    note.downloads += 1;
-    await note.save();
-
-    const filePath = path.join(__dirname, '../uploads', note.file);
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: 'File not found on server' });
-    }
-    
-    res.download(filePath, `${note.title}.pdf`, (err) => {
-      if (err) {
-        console.error('Download error:', err);
-        if (!res.headersSent) {
-          res.status(500).json({ message: 'Error downloading file' });
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Download error:', error);
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Delete note (protected - only owner)
-router.delete('/:id', auth, validateId, async (req, res) => {
-  try {
-    const note = await Note.findById(req.params.id);
-    
-    if (!note) {
-      return res.status(404).json({ message: 'Note not found' });
-    }
-    
-    if (note.uploadedBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'You can only delete your own notes' });
-    }
-    
-    // Delete file from storage
-    const filePath = path.join(__dirname, '../uploads', note.file);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-    
-    await note.deleteOne();
-    
-    res.json({ message: 'Note deleted successfully' });
-  } catch (error) {
-    console.error('Delete note error:', error);
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Debug route (admin only)
-router.get('/debug/all', auth, adminAuth, async (req, res) => {
-  try {
-    const notes = await Note.find({})
-      .populate('uploadedBy', 'name email')
-      .sort({ createdAt: -1 });
+    await note.save({ validateBeforeSave: false });
     
     res.json({
-      total: notes.length,
-      notes: notes
+      success: true,
+      note
     });
   } catch (error) {
-    console.error('Debug error:', error);
-    res.status(500).json({ message: error.message });
+    console.error('❌ Get note error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error' 
+    });
   }
 });
 

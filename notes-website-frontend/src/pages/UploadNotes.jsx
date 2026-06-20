@@ -58,16 +58,32 @@ const UploadNotes = ({ user }) => {
       }
     });
     
-    // Append file
+    // ✅ Append file
     if (file) {
       uploadData.append('file', file);
+      console.log('📄 File attached:', file.name, file.size);
+    } else {
+      toast.error('Please select a file');
+      setLoading(false);
+      return;
     }
 
     try {
       const token = localStorage.getItem('token');
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      if (!token) {
+        toast.error('Please login first');
+        setLoading(false);
+        return;
+      }
+
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       
-      const response = await fetch(`${API_URL}/notes/upload`, {
+      console.log('📤 Uploading to:', `${API_URL}/api/notes/upload`);
+      console.log('📄 File:', file?.name);
+      console.log('📏 File size:', file?.size);
+      console.log('📝 Form data:', Object.fromEntries(uploadData));
+
+      const response = await fetch(`${API_URL}/api/notes/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -75,24 +91,38 @@ const UploadNotes = ({ user }) => {
         body: uploadData
       });
       
-      // Simulate progress
-      setUploadProgress(50);
+      // ✅ Log response status
+      console.log('📥 Response status:', response.status);
+
+      // ✅ Try to parse response
+      let data;
+      try {
+        data = await response.json();
+        console.log('📥 Response data:', data);
+      } catch (parseError) {
+        console.error('❌ Failed to parse response:', parseError);
+        // Try to get text response
+        const text = await response.text();
+        console.log('📥 Raw response:', text);
+        throw new Error('Server returned invalid response');
+      }
       
       if (response.ok) {
-        const data = await response.json();
         setUploadProgress(100);
-        toast.success('Notes uploaded successfully! 🎉');
+        toast.success('Notes uploaded successfully! 🎉 Waiting for approval.');
         setTimeout(() => {
           navigate('/dashboard');
-        }, 500);
+        }, 1500);
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'Upload failed');
+        // ✅ Show detailed error
+        const errorMessage = data.message || data.error || 'Upload failed';
+        toast.error(errorMessage);
+        console.error('❌ Upload error:', data);
         setUploadProgress(0);
       }
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Network error. Please check your connection.');
+      console.error('❌ Upload error:', error);
+      toast.error(error.message || 'Network error. Please check your connection.');
       setUploadProgress(0);
     } finally {
       setLoading(false);
@@ -105,7 +135,6 @@ const UploadNotes = ({ user }) => {
       ...prev,
       [name]: value
     }));
-    // Clear error for this field when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }

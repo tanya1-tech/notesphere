@@ -8,6 +8,9 @@ import { generalLimiter } from './middleware/rateLimiter.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import userRoutes from './routes/users.js';
 import noteRoutes from './routes/notes.js';
+import fs from 'fs';
+import path from 'path';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,6 +51,17 @@ app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
+
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  try {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('📁 Uploads directory created');
+  } catch (err) {
+    console.error('❌ Failed to create uploads directory:', err);
+  }
+}
+
 
 // ============ ROUTES ============
 app.use('/api/users', userRoutes);
