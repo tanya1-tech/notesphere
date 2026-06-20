@@ -29,9 +29,20 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
+    // ✅ Sanitize filename - remove special characters and emojis
+    const cleanName = file.originalname
+      .replace(/\s+/g, '_')                    // Replace spaces with underscores
+      .replace(/[^a-zA-Z0-9._-]/g, '')          // Remove all special characters
+      .replace(/_{2,}/g, '_');                  // Remove multiple underscores
+    
+    // Generate unique filename with timestamp
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const originalName = file.originalname.replace(/\s+/g, '_');
-    cb(null, uniqueSuffix + '-' + originalName);
+    const finalName = uniqueSuffix + '-' + cleanName;
+    
+    console.log('📄 Original:', file.originalname);
+    console.log('📄 Sanitized:', finalName);
+    
+    cb(null, finalName);
   }
 });
 
