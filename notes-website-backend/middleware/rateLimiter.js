@@ -1,11 +1,9 @@
 import rateLimit from 'express-rate-limit';
 
-/**
- * General rate limiter - Applies to all API routes
- */
+// ============ GENERAL RATE LIMITER ============
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
@@ -14,16 +12,14 @@ export const generalLimiter = rateLimit({
     message: 'Too many requests, please try again later.'
   },
   keyGenerator: (req) => {
-    return req.ip || req.connection.remoteAddress || 'unknown';
+    return req.ip || req.connection?.remoteAddress || 'unknown';
   }
 });
 
-/**
- * Strict rate limiter - For sensitive routes like auth
- */
+// ============ STRICT RATE LIMITER ============
 export const strictLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // Limit each IP to 5 requests per hour
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
@@ -32,16 +28,14 @@ export const strictLimiter = rateLimit({
     message: 'Too many attempts, please try again later.'
   },
   keyGenerator: (req) => {
-    return req.ip || req.connection.remoteAddress || 'unknown';
+    return req.ip || req.connection?.remoteAddress || 'unknown';
   }
 });
 
-/**
- * File upload rate limiter - For upload routes
- */
+// ============ UPLOAD RATE LIMITER ============
 export const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // Limit each IP to 10 uploads per hour
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
@@ -50,24 +44,22 @@ export const uploadLimiter = rateLimit({
     message: 'Too many uploads, please try again later.'
   },
   keyGenerator: (req) => {
-    return req.ip || req.connection.remoteAddress || 'unknown';
+    return req.ip || req.connection?.remoteAddress || 'unknown';
   }
 });
 
-/**
- * Download rate limiter - For download routes
- */
+// ============ DOWNLOAD RATE LIMITER ============
 export const downloadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 50, // Limit each IP to 50 downloads per hour
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false }, // ✅ ADD THIS
+  validate: { xForwardedForHeader: false },
   message: {
     success: false,
     message: 'Too many downloads. Please try again later.'
   },
-  keyGenerator: (req) => { // ✅ ADD THIS
-    return req.ip || req.connection.remoteAddress || 'unknown';
+  keyGenerator: (req) => {
+    return req.ip || req.connection?.remoteAddress || 'unknown';
   }
 });
