@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import API, { getUserNotes } from '../services/api';
 
 const Dashboard = ({ user }) => {
   const [userStats, setUserStats] = useState({
@@ -17,25 +18,14 @@ const Dashboard = ({ user }) => {
   }, []);
 
   const loadUserNotes = async () => {
-  try {
-    setLoading(true);
-    const token = localStorage.getItem('token');
-    
-    console.log('📥 Fetching user notes...');
-    
-    const response = await fetch(`${API_URL}/api/notes/user/my-notes`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    console.log('📥 Response status:', response.status);
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log('📥 Notes data:', data);
+    try {
+      setLoading(true);
+      console.log('📥 Fetching user notes...');
       
-      const notes = data.notes || [];
+      const response = await getUserNotes();
+      console.log('📥 Notes response:', response);
+      
+      const notes = response.data?.notes || [];
       setUserNotes(notes);
       
       const stats = {
@@ -45,18 +35,15 @@ const Dashboard = ({ user }) => {
         reputation: notes.length * 5
       };
       setUserStats(stats);
-    } else {
-      const error = await response.json();
-      console.error('❌ Failed to load notes:', error);
-      toast.error(error.message || 'Failed to load your notes');
+      
+    } catch (error) {
+      console.error('❌ Error loading user notes:', error);
+      toast.error('Failed to load your notes');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('❌ Error loading user notes:', error);
-    toast.error('Error loading your notes');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
   const recentNotes = userNotes.slice(0, 3);
 
   const popularSubjects = [
