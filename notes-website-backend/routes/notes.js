@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import Note from '../models/Note.js';
-import { auth, adminAuth } from '../middleware/auth.js';  // ✅ ADD adminAuth here
+import { auth, adminAuth } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -198,7 +198,117 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ============ ADMIN ROUTES ============
+// ⚠️ IMPORTANT: These MUST be BEFORE the /:id route
+
+// Get all pending notes (admin only)
+router.get('/pending', auth, adminAuth, async (req, res) => {
+  try {
+    console.log('📥 Fetching pending notes...');
+    
+    const notes = await Note.find({ status: 'pending' })
+      .populate('uploadedBy', 'name email')
+      .sort({ createdAt: -1 });
+    
+    console.log(`✅ Found ${notes.length} pending notes`);
+    
+    res.json({
+      success: true,
+      count: notes.length,
+      notes
+    });
+  } catch (error) {
+    console.error('❌ Get pending notes error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to load pending notes',
+      error: error.message 
+    });
+  }
+});
+
+// Approve a note (admin only)
+router.put('/:id/approve', auth, adminAuth, async (req, res) => {
+  try {
+    console.log('📤 Approving note:', req.params.id);
+    
+    const note = await Note.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'approved',
+        approvedBy: req.user.id,
+        approvedAt: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!note) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Note not found' 
+      });
+    }
+    
+    console.log('✅ Note approved:', note._id);
+    
+    res.json({
+      success: true,
+      message: 'Note approved successfully',
+      note
+    });
+  } catch (error) {
+    console.error('❌ Approve note error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to approve note',
+      error: error.message 
+    });
+  }
+});
+
+// Reject a note (admin only)
+router.put('/:id/reject', auth, adminAuth, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    console.log('📤 Rejecting note:', req.params.id);
+    
+    const note = await Note.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'rejected',
+        rejectedBy: req.user.id,
+        rejectedAt: new Date(),
+        rejectionReason: reason || 'No reason provided'
+      },
+      { new: true }
+    );
+    
+    if (!note) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Note not found' 
+      });
+    }
+    
+    console.log('❌ Note rejected:', note._id);
+    
+    res.json({
+      success: true,
+      message: 'Note rejected',
+      note
+    });
+  } catch (error) {
+    console.error('❌ Reject note error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to reject note',
+      error: error.message 
+    });
+  }
+});
+
 // ============ GET SINGLE NOTE ============
+// ⚠️ This MUST be LAST - it catches any /:id requests
 router.get('/:id', async (req, res) => {
   try {
     const note = await Note.findById(req.params.id)
@@ -223,100 +333,6 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: 'Internal server error' 
-    });
-  }
-});
-
-// ============ ADMIN ROUTES ============
-
-// Get all pending notes (admin only)
-router.get('/pending', auth, adminAuth, async (req, res) => {
-  try {
-    const notes = await Note.find({ status: 'pending' })
-      .populate('uploadedBy', 'name email')
-      .sort({ createdAt: -1 });
-    
-    res.json({
-      success: true,
-      count: notes.length,
-      notes
-    });
-  } catch (error) {
-    console.error('❌ Get pending notes error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to load pending notes' 
-    });
-  }
-});
-
-// Approve a note (admin only)
-router.put('/:id/approve', auth, adminAuth, async (req, res) => {
-  try {
-    const note = await Note.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: 'approved',
-        approvedBy: req.user.id,
-        approvedAt: new Date()
-      },
-      { new: true }
-    );
-    
-    if (!note) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Note not found' 
-      });
-    }
-    
-    res.json({
-      success: true,
-      message: 'Note approved successfully',
-      note
-    });
-  } catch (error) {
-    console.error('❌ Approve note error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to approve note' 
-    });
-  }
-});
-
-// Reject a note (admin only)
-router.put('/:id/reject', auth, adminAuth, async (req, res) => {
-  try {
-    const { reason } = req.body;
-    
-    const note = await Note.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: 'rejected',
-        rejectedBy: req.user.id,
-        rejectedAt: new Date(),
-        rejectionReason: reason || 'No reason provided'
-      },
-      { new: true }
-    );
-    
-    if (!note) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Note not found' 
-      });
-    }
-    
-    res.json({
-      success: true,
-      message: 'Note rejected',
-      note
-    });
-  } catch (error) {
-    console.error('❌ Reject note error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to reject note' 
     });
   }
 });

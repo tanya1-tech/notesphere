@@ -5,7 +5,7 @@ const Navbar = ({ user, onLogout }) => {
   return (
     <nav className="navbar">
       <Link to="/" className="navbar-brand">
-        📚 Notesphere
+        📚 Notes<span>phere</span>
       </Link>
       
       <ul className="nav-links">
@@ -18,6 +18,36 @@ const Navbar = ({ user, onLogout }) => {
         {user ? (
           <>
             <li><Link to="/dashboard" style={{ color: '#6c63ff' }}>Dashboard</Link></li>
+            
+            {/* ✅ ADMIN LINK - Only visible to admin users */}
+            {user.role === 'admin' && (
+              <li>
+                <Link 
+                  to="/admin"
+                  style={{
+                    background: 'linear-gradient(135deg, #e17055, #d63031)',
+                    color: 'white',
+                    padding: '0.5rem 1.5rem',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    textDecoration: 'none',
+                    transition: 'all 0.3s',
+                    boxShadow: '0 4px 15px rgba(214, 48, 49, 0.3)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 8px 25px rgba(214, 48, 49, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 15px rgba(214, 48, 49, 0.3)';
+                  }}
+                >
+                  🛡️ Admin
+                </Link>
+              </li>
+            )}
+            
             <li>
               <Link 
                 to="/upload" 
@@ -94,7 +124,7 @@ const Navbar = ({ user, onLogout }) => {
                   e.target.style.boxShadow = '0 4px 15px rgba(108, 99, 255, 0.3)';
                 }}
               >
-              Login
+                🔑 Login
               </Link>
             </li>
             <li>
@@ -119,7 +149,7 @@ const Navbar = ({ user, onLogout }) => {
                   e.target.style.boxShadow = '0 4px 15px rgba(0, 217, 126, 0.3)';
                 }}
               >
-              Register
+                ✨ Register
               </Link>
             </li>
           </>

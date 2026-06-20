@@ -121,30 +121,30 @@ function App() {
               
               {/* ✅ ADMIN ROUTE */}
               <Route 
-                path="/admin" 
-                element={
-                  (() => {
-                    console.log('🔍 Admin route check:', { 
-                      userExists: !!user, 
-                      role: user?.role,
-                      isAdmin: user?.role === 'admin'
-                    });
-                    
-                    if (!user) {
-                      console.log('❌ No user - redirecting to login');
-                      return <Navigate to="/login" />;
-                    }
-                    
-                    if (user.role === 'admin') {
-                      console.log('✅ User is admin - showing dashboard');
-                      return <AdminDashboard />;
-                    }
-                    
-                    console.log('❌ User is not admin - redirecting to home');
-                    return <Navigate to="/" />;
-                  })()
-                } 
-              />
+  path="/admin" 
+  element={
+    (() => {
+      console.log('🔍 Admin route check:', { 
+        userExists: !!user, 
+        role: user?.role,
+        isAdmin: user?.role === 'admin'
+      });
+      
+      if (!user) {
+        console.log('❌ No user - redirecting to login');
+        return <Navigate to="/login" />;
+      }
+      
+      if (user.role === 'admin') {
+        console.log('✅ User is admin - showing dashboard');
+        return <AdminDashboard />;
+      }
+      
+      console.log('❌ User is not admin - redirecting to home');
+      return <Navigate to="/" />;
+    })()
+  } 
+/>
             </Routes>
           </main>
           <ToastContainer 
