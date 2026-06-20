@@ -4,6 +4,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+notes-website-backend/node_modules/
+notes-website-frontend/node_modules/
 
 # ========== ENVIRONMENT VARIABLES ==========
 .env
@@ -15,6 +17,7 @@ yarn-error.log*
 uploads/
 uploads/*/
 !uploads/.gitkeep
+notes-website-backend/uploads/
 
 # ========== LOGS ==========
 logs/
