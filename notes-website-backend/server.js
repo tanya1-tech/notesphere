@@ -119,12 +119,18 @@ app.listen(PORT, () => {
 });
 
 // ============ GRACEFUL SHUTDOWN ============
+// ✅ FIXED - Mongoose 7+ doesn't accept callback
 const shutdown = () => {
   console.log('Shutting down gracefully...');
-  mongoose.connection.close(() => {
-    console.log('MongoDB connection closed');
-    process.exit(0);
-  });
+  mongoose.connection.close()
+    .then(() => {
+      console.log('MongoDB connection closed');
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('Error closing MongoDB connection:', err);
+      process.exit(1);
+    });
 };
 
 process.on('SIGTERM', shutdown);
