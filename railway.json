@@ -1,0 +1,10 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd notes-website-backend && npm install"
+  },
+  "deploy": {
+    "startCommand": "cd notes-website-backend && node server.js",
+    "healthcheckPath": "/health"
+  }
+}
