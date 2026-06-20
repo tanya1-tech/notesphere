@@ -1,6 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import cors from 'cors';
+import cors from 'cors';  // ✅ Keep only this import
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -8,6 +8,9 @@ import { generalLimiter } from './middleware/rateLimiter.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import userRoutes from './routes/users.js';
 import noteRoutes from './routes/notes.js';
+import adminRoutes from './routes/admin.js';
+
+
 
 dotenv.config();
 
@@ -16,6 +19,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// ❌ REMOVE THIS LINE - it's a duplicate and incorrect
+// const cors = require('cors');
 
 // Rate Limiting - Apply to all API routes
 app.use('/api/', generalLimiter);
@@ -26,35 +32,43 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   : [
       'http://localhost:5173', 
       'http://localhost:3000',
-      'https://notesphere-sandy.vercel.app'
+      'https://notesphere-sandy.vercel.app',
+      // Add your Railway URL for testing
+      'https://notesphere-backend.up.railway.app'  // Replace with your Railway URL
     ];
 
+// ✅ Fixed CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    
+    // Check if origin is allowed
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('Blocked by CORS:', origin);
+      console.log('❌ Blocked by CORS:', origin);
+      console.log('✅ Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
+// Rest of your code...
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploads folder statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-
-// Logging middleware (optional)
+// Logging middleware
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
+  console.log('Origin:', req.headers.origin);
   next();
 });
 
@@ -71,6 +85,10 @@ app.get('/', (req, res) => {
   });
 });
 
+app.use('/api/users', userRoutes);
+app.use('/api/notes', noteRoutes);
+app.use('/api/admin', adminRoutes); 
+
 // Health check route for Railway
 app.get('/health', (req, res) => {
   res.json({
@@ -78,7 +96,7 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     memory: process.memoryUsage(),
-    env: process.env.NODE_ENV || 'development',
+    env: process.NODE_ENV || 'development',
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
@@ -133,4 +151,5 @@ app.listen(PORT, () => {
   console.log(`📡 API available at: http://localhost:${PORT}`);
   console.log(`📁 Uploads served at: http://localhost:${PORT}/uploads`);
   console.log(`🔒 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`✅ Allowed CORS origins:`, allowedOrigins);
 });

@@ -14,6 +14,7 @@ import PDFViewer from './pages/PDFViewer';
 import Courses from './pages/Courses';
 import About from './pages/About';
 import Contact from './pages/Contact';
+import AdminDashboard from './pages/AdminDashboard'; // ← ADD THIS
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
 import { getProfile } from './services/api';
@@ -57,10 +58,13 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <div className="App">
-          <Navbar user={user} onLogout={handleLogout} />
-          <main>
-            <Routes>
+        <div className="App" style={{ 
+  minHeight: '100vh',
+  background: 'linear-gradient(135deg, #F8F9FE 0%, #EDF0FA 100%)'
+}}>
+  <Navbar user={user} onLogout={handleLogout} />
+  <main>
+    <Routes>
               <Route path="/" element={<Home user={user} />} />
               <Route 
                 path="/login" 
@@ -87,19 +91,15 @@ function App() {
               <Route path="/pdf-viewer" element={<PDFViewer />} />
               <Route path="/about" element={<About user={user} />} />
               <Route path="/contact" element={<Contact />} />
+              
+              {/* ← ADD THIS ROUTE */}
+              <Route 
+                path="/admin" 
+                element={user && user.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" />} 
+              />
             </Routes>
           </main>
-          <ToastContainer 
-            position="bottom-right"
-            autoClose={3000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-          />
+          <ToastContainer />
         </div>
       </Router>
     </ErrorBoundary>

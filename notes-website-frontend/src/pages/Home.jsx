@@ -5,86 +5,77 @@ const Home = ({ user }) => {
   return (
     <div className="container">
       {/* Hero Section */}
-      <section className="hero">
+      <div className="hero">
         <h1>Welcome to Notesphere</h1>
         <p>Your ultimate destination for college notes, study materials, and academic resources</p>
-        <div>
-          {!user ? (
+        <div className="hero-buttons">
+          {user ? (
             <>
-              <Link to="/register" className="btn btn-primary" style={{ marginRight: '1rem' }}>
-                Get Started
-              </Link>
-              <Link to="/notes" className="btn btn-secondary">
-                Browse Notes
-              </Link>
+              <Link to="/upload" className="btn-hero-primary">📤 Upload Notes</Link>
+              <Link to="/dashboard" className="btn-hero-secondary">📊 My Dashboard</Link>
             </>
           ) : (
             <>
-              <Link to="/upload" className="btn btn-primary" style={{ marginRight: '1rem' }}>
-                Upload Notes
-              </Link>
-              <Link to="/dashboard" className="btn btn-secondary">
-                My Dashboard
-              </Link>
+              <Link to="/register" className="btn-hero-primary">🚀 Get Started</Link>
+              <Link to="/notes" className="btn-hero-secondary">📚 Browse Notes</Link>
             </>
           )}
         </div>
-      </section>
+      </div>
 
-      {/* Search Section - Like the Screenshot */}
-      <section className="search-section">
-        <h2>Download, study and succeed</h2>
-        {/* <div className="search-filters">
-          <div className="form-group">
-            <select className="form-control">
-              <option>Which College</option>
-              <option>Medicaps University</option>
-              <option>IPS Academy</option>
-              <option>IIST</option>
-              <option>Other</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <select className="form-control">
-              <option>Which Year</option>
-              <option>First Year</option>
-              <option>Second Year</option>
-              <option>Third Year</option>
-              <option>Fourth Year</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <input 
-              type="text" 
-              className="form-control" 
-              placeholder="Search notes, subjects..." 
-            />
-          </div>
-        </div> */}
-      </section>
+      {/* Features */}
+      <div className="features-grid">
+        <div className="feature-card">
+          <div className="feature-icon">📚</div>
+          <h3>Wide Collection</h3>
+          <p>Access notes from multiple branches and semesters. Comprehensive coverage of all subjects.</p>
+        </div>
+        <div className="feature-card">
+          <div className="feature-icon">👨‍🎓</div>
+          <h3>Student Community</h3>
+          <p>Join thousands of students sharing and learning together. Upload and download notes easily.</p>
+        </div>
+        <div className="feature-card">
+          <div className="feature-icon">📱</div>
+          <h3>Easy Access</h3>
+          <p>View notes online, download PDFs, and study anytime, anywhere on any device.</p>
+        </div>
+        <div className="feature-card">
+          <div className="feature-icon">⭐</div>
+          <h3>Quality Content</h3>
+          <p>All notes are reviewed and curated to ensure high-quality study materials.</p>
+        </div>
+      </div>
 
       {/* About Section */}
       <div className="card">
-        <h2>About Notesphere</h2>
-        <p>
-          NotesEra is a comprehensive platform for students to share and access study materials. 
+        <h2 style={{ marginBottom: '1rem' }}>About Notesphere</h2>
+        <p style={{ color: '#666', fontSize: '1.05rem' }}>
+          Notesphere is a comprehensive platform for students to share and access study materials. 
           Find notes for various subjects, semesters, and branches to excel in your academics.
         </p>
-      </div>
-
-      {/* Features Grid */}
-      <div className="features-grid">
-        <div className="feature-card floating">
-          <h3>📚 Wide Collection</h3>
-          <p>Access notes from multiple branches and semesters. Comprehensive coverage of all subjects.</p>
-        </div>
-        <div className="feature-card floating" style={{animationDelay: '0.5s'}}>
-          <h3>🚀 Easy Upload</h3>
-          <p>Share your notes with the community easily. Simple drag-and-drop interface.</p>
-        </div>
-        <div className="feature-card floating" style={{animationDelay: '1s'}}>
-          <h3>📱 Always Available</h3>
-          <p>Access your notes anytime, anywhere. Mobile-friendly and cloud-synced.</p>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '1.5rem',
+          marginTop: '2rem'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#6c63ff' }}>10K+</div>
+            <div style={{ color: '#666' }}>Students</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#6c63ff' }}>5K+</div>
+            <div style={{ color: '#666' }}>Notes Available</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#6c63ff' }}>50+</div>
+            <div style={{ color: '#666' }}>Subjects</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#6c63ff' }}>20+</div>
+            <div style={{ color: '#666' }}>Branches</div>
+          </div>
         </div>
       </div>
     </div>

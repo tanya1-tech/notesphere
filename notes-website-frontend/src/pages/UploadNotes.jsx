@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { uploadNote } from '../services/api';
 
 const UploadNotes = ({ user }) => {
   const [formData, setFormData] = useState({
@@ -51,45 +50,52 @@ const UploadNotes = ({ user }) => {
     setUploadProgress(0);
 
     const uploadData = new FormData();
+    
+    // Append all form fields
     Object.keys(formData).forEach(key => {
       if (formData[key] !== undefined && formData[key] !== '') {
         uploadData.append(key, formData[key]);
       }
     });
-    uploadData.append('file', file);
+    
+    // Append file
+    if (file) {
+      uploadData.append('file', file);
+    }
 
     try {
-      const response = await uploadNote(uploadData, {
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
-          setUploadProgress(progress);
-        }
+      const token = localStorage.getItem('token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const response = await fetch(`${API_URL}/notes/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: uploadData
       });
       
-      toast.success('Notes uploaded successfully! 🎉');
-      navigate('/dashboard');
+      // Simulate progress
+      setUploadProgress(50);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUploadProgress(100);
+        toast.success('Notes uploaded successfully! 🎉');
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 500);
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Upload failed');
+        setUploadProgress(0);
+      }
     } catch (error) {
       console.error('Upload error:', error);
-      
-      if (error.response) {
-        const message = error.response.data?.message || 'Upload failed';
-        toast.error(message);
-        
-        if (error.response.data?.errors) {
-          const fieldErrors = {};
-          error.response.data.errors.forEach(err => {
-            fieldErrors[err.param] = err.msg;
-          });
-          setErrors(fieldErrors);
-        }
-      } else if (error.request) {
-        toast.error('Network error. Please check your connection.');
-      } else {
-        toast.error('An unexpected error occurred. Please try again.');
-      }
+      toast.error('Network error. Please check your connection.');
+      setUploadProgress(0);
     } finally {
       setLoading(false);
-      setUploadProgress(0);
     }
   };
 
@@ -137,7 +143,10 @@ const UploadNotes = ({ user }) => {
     'Mechanical Engineering',
     'Civil Engineering',
     'Electrical Engineering',
-    'Chemical Engineering'
+    'Chemical Engineering',
+    'Aerospace Engineering',
+    'Biotechnology',
+    'Food Technology'
   ];
 
   const courses = [
@@ -148,7 +157,11 @@ const UploadNotes = ({ user }) => {
     'BCA',
     'MCA',
     'B.Sc',
-    'M.Sc'
+    'M.Sc',
+    'B.Com',
+    'M.Com',
+    'BA',
+    'MA'
   ];
 
   return (
@@ -331,7 +344,15 @@ const UploadNotes = ({ user }) => {
                 />
                 {errors.file && <div className="invalid-feedback">{errors.file}</div>}
                 {file && (
-                  <div className="file-info">
+                  <div className="file-info" style={{
+                    marginTop: '0.5rem',
+                    padding: '0.5rem',
+                    background: '#e8f5e9',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
                     <span>📄 {file.name}</span>
                     <span>({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
                     <button 
@@ -343,6 +364,13 @@ const UploadNotes = ({ user }) => {
                           fileInputRef.current.value = '';
                         }
                       }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#d32f2f',
+                        cursor: 'pointer',
+                        fontSize: '1.2rem'
+                      }}
                     >
                       ✕
                     </button>
@@ -353,12 +381,33 @@ const UploadNotes = ({ user }) => {
             </div>
 
             {uploadProgress > 0 && uploadProgress < 100 && (
-              <div className="progress-bar">
+              <div className="progress-bar" style={{
+                marginTop: '1rem',
+                background: '#f5f5f5',
+                borderRadius: '4px',
+                height: '20px',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
                 <div 
                   className="progress-fill" 
-                  style={{ width: `${uploadProgress}%` }}
+                  style={{ 
+                    width: `${uploadProgress}%`,
+                    background: 'linear-gradient(90deg, #55efc4, #00b894)',
+                    height: '100%',
+                    transition: 'width 0.3s ease'
+                  }}
                 />
-                <span className="progress-text">{uploadProgress}% uploaded</span>
+                <span className="progress-text" style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold'
+                }}>
+                  {uploadProgress}% uploaded
+                </span>
               </div>
             )}
 
@@ -366,6 +415,12 @@ const UploadNotes = ({ user }) => {
               type="submit" 
               className="btn btn-primary upload-btn"
               disabled={loading}
+              style={{
+                width: '100%',
+                marginTop: '1rem',
+                padding: '1rem',
+                fontSize: '1.1rem'
+              }}
             >
               {loading ? (
                 <>
@@ -379,9 +434,20 @@ const UploadNotes = ({ user }) => {
           </form>
 
           {/* Upload Guidelines */}
-          <div className="upload-guidelines">
-            <h4>📝 Upload Guidelines</h4>
-            <ul>
+          <div className="upload-guidelines" style={{
+            marginTop: '2rem',
+            padding: '1.5rem',
+            background: '#f8f9fa',
+            borderRadius: '8px',
+            border: '1px solid #e1e5e9'
+          }}>
+            <h4 style={{ marginBottom: '1rem' }}>📝 Upload Guidelines</h4>
+            <ul style={{ 
+              margin: 0,
+              paddingLeft: '1.5rem',
+              color: '#666',
+              lineHeight: '1.8'
+            }}>
               <li>Only PDF files are accepted (Max size: 30MB)</li>
               <li>Ensure notes are clear, readable, and properly formatted</li>
               <li>Include relevant topics and chapters in description</li>

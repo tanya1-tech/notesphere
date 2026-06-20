@@ -1,80 +1,130 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Navbar = ({ user, onLogout }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const location = useLocation();
-
-  const isActive = (path) => {
-    return location.pathname === path ? 'active' : '';
-  };
-
   return (
     <nav className="navbar">
-      <div className="nav-container">
-        <Link to="/" className="logo" onClick={() => setIsMenuOpen(false)}>
-          <span className="logo-full">NOTESPHERE</span>
-          <span className="logo-short">NOTES<br/>SPHERE</span>
-        </Link>
-
-        <button 
-          className="nav-toggle"
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          aria-label="Toggle navigation"
-        >
-          <span className="hamburger"></span>
-        </button>
+      <Link to="/" className="navbar-brand">
+        📚 Notesphere
+      </Link>
+      
+      <ul className="nav-links">
+        <li><Link to="/">Home</Link></li>
+        <li><Link to="/notes">Notes</Link></li>
+        <li><Link to="/courses">Courses</Link></li>
+        <li><Link to="/about">About</Link></li>
+        <li><Link to="/contact">Contact</Link></li>
         
-        <div className={`nav-menu ${isMenuOpen ? 'open' : ''}`}>
-          <Link to="/" className={isActive('/')} onClick={() => setIsMenuOpen(false)}>
-            Home
-          </Link>
-          <Link to="/notes" className={isActive('/notes')} onClick={() => setIsMenuOpen(false)}>
-            Notes
-          </Link>
-          <Link to="/courses" className={isActive('/courses')} onClick={() => setIsMenuOpen(false)}>
-            Courses
-          </Link>
-          <Link to="/about" className={isActive('/about')} onClick={() => setIsMenuOpen(false)}>
-            About
-          </Link>
-          <Link to="/contact" className={isActive('/contact')} onClick={() => setIsMenuOpen(false)}>
-            Contact
-          </Link>
-          
-          {user ? (
-            <>
-              <Link to="/dashboard" className={isActive('/dashboard')} onClick={() => setIsMenuOpen(false)}>
-                Dashboard
-              </Link>
-              <Link to="/upload" className={isActive('/upload')} onClick={() => setIsMenuOpen(false)}>
-                Upload
-              </Link>
-              <span className="user-welcome">
-                Hi, {user.name?.split(' ')[0] || 'User'}
-              </span>
-              <button 
-                onClick={() => {
-                  onLogout();
-                  setIsMenuOpen(false);
-                }} 
-                className="logout-btn"
+        {user ? (
+          <>
+            <li><Link to="/dashboard" style={{ color: '#6c63ff' }}>Dashboard</Link></li>
+            <li>
+              <Link 
+                to="/upload" 
+                style={{
+                  background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)',
+                  color: 'white',
+                  padding: '0.5rem 1.5rem',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  textDecoration: 'none',
+                  transition: 'all 0.3s',
+                  boxShadow: '0 4px 15px rgba(255, 107, 107, 0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 8px 25px rgba(255, 107, 107, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 15px rgba(255, 107, 107, 0.3)';
+                }}
               >
-                Logout
+                📤 Upload
+              </Link>
+            </li>
+            <li>
+              <button 
+                onClick={onLogout}
+                style={{
+                  background: 'linear-gradient(135deg, #ff6b6b, #d63031)',
+                  color: 'white',
+                  padding: '0.5rem 1.5rem',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s',
+                  boxShadow: '0 4px 15px rgba(255, 107, 107, 0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 8px 25px rgba(255, 107, 107, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 15px rgba(255, 107, 107, 0.3)';
+                }}
+              >
+                🚪 Logout
               </button>
-            </>
-          ) : (
-            <>
-              <Link to="/login" className="nav-login" onClick={() => setIsMenuOpen(false)}>
-                Login
+            </li>
+          </>
+        ) : (
+          <>
+            <li>
+              <Link 
+                to="/login"
+                style={{
+                  background: 'linear-gradient(135deg, #6c63ff, #8b83ff)',
+                  color: 'white',
+                  padding: '0.5rem 1.5rem',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  textDecoration: 'none',
+                  transition: 'all 0.3s',
+                  boxShadow: '0 4px 15px rgba(108, 99, 255, 0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 8px 25px rgba(108, 99, 255, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 15px rgba(108, 99, 255, 0.3)';
+                }}
+              >
+              Login
               </Link>
-              <Link to="/register" className="nav-join" onClick={() => setIsMenuOpen(false)}>
-                Join Us
+            </li>
+            <li>
+              <Link 
+                to="/register"
+                style={{
+                  background: 'linear-gradient(135deg, #00d97e, #00b894)',
+                  color: 'white',
+                  padding: '0.5rem 1.5rem',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  textDecoration: 'none',
+                  transition: 'all 0.3s',
+                  boxShadow: '0 4px 15px rgba(0, 217, 126, 0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 8px 25px rgba(0, 217, 126, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 15px rgba(0, 217, 126, 0.3)';
+                }}
+              >
+              Register
               </Link>
-            </>
-          )}
-        </div>
-      </div>
+            </li>
+          </>
+        )}
+      </ul>
     </nav>
   );
 };

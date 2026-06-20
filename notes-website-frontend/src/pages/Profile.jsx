@@ -4,6 +4,7 @@ import { getProfile } from '../services/api';
 
 const Profile = ({ user }) => {
   const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadProfile();
@@ -11,17 +12,29 @@ const Profile = ({ user }) => {
 
   const loadProfile = async () => {
     try {
+      setLoading(true);
       const { data } = await getProfile();
       setProfile(data);
     } catch (error) {
+      console.error('Error loading profile:', error);
       toast.error('Failed to load profile');
+    } finally {
+      setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="container">
+        <div className="loading">Loading profile...</div>
+      </div>
+    );
+  }
 
   if (!profile) {
     return (
       <div className="container">
-        <div className="loading">Loading profile...</div>
+        <div className="error">Failed to load profile</div>
       </div>
     );
   }
@@ -35,42 +48,51 @@ const Profile = ({ user }) => {
           <div style={{ display: 'grid', gap: '1.5rem' }}>
             <div>
               <strong>Name:</strong>
-              <p>{profile.name}</p>
+              <p>{profile.name || 'Not set'}</p>
             </div>
             
             <div>
               <strong>Email:</strong>
-              <p>{profile.email}</p>
+              <p>{profile.email || 'Not set'}</p>
             </div>
             
             <div>
               <strong>Mobile:</strong>
-              <p>{profile.mobile}</p>
+              <p>{profile.mobile || 'Not set'}</p>
             </div>
             
             <div>
               <strong>Address:</strong>
-              <p>{profile.address}</p>
+              <p>{profile.address || 'Not set'}</p>
             </div>
             
             <div>
               <strong>City:</strong>
-              <p>{profile.city}</p>
+              <p>{profile.city || 'Not set'}</p>
             </div>
             
             <div>
               <strong>Gender:</strong>
-              <p>{profile.gender}</p>
+              <p>{profile.gender || 'Not set'}</p>
             </div>
             
             <div>
               <strong>Role:</strong>
-              <p>{profile.role}</p>
+              <p style={{
+                color: profile.role === 'admin' ? '#e17055' : '#00b894',
+                fontWeight: 'bold'
+              }}>
+                {profile.role || 'user'}
+              </p>
             </div>
             
             <div>
               <strong>Member Since:</strong>
-              <p>{new Date(profile.info).toLocaleDateString()}</p>
+              <p>{profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+              }) : 'Not available'}</p>
             </div>
           </div>
         </div>

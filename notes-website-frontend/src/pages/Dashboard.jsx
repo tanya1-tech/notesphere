@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 const Dashboard = ({ user }) => {
   const [userStats, setUserStats] = useState({
@@ -11,25 +12,26 @@ const Dashboard = ({ user }) => {
   const [userNotes, setUserNotes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load user's notes and stats
   useEffect(() => {
     loadUserNotes();
   }, []);
-
-  
 
   const loadUserNotes = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notes/user/my-notes`, {
+      
+      // Fix: Use the correct API endpoint
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/notes/user/my-notes`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
       if (response.ok) {
-        const notes = await response.json();
+        const data = await response.json();
+        // Handle different response formats
+        const notes = data.notes || data || [];
         setUserNotes(notes);
         
         // Calculate stats from user's notes
@@ -37,20 +39,23 @@ const Dashboard = ({ user }) => {
           notesUploaded: notes.length,
           totalDownloads: notes.reduce((sum, note) => sum + (note.downloads || 0), 0),
           totalViews: notes.reduce((sum, note) => sum + (note.views || 0), 0),
-          reputation: notes.length * 5 // Simple reputation calculation
+          reputation: notes.length * 5
         };
         setUserStats(stats);
       } else {
-        console.error('Failed to load user notes');
+        const error = await response.json();
+        console.error('Failed to load user notes:', error);
+        toast.error('Failed to load your notes');
       }
     } catch (error) {
       console.error('Error loading user notes:', error);
+      toast.error('Error loading your notes');
     } finally {
       setLoading(false);
     }
   };
 
-  const recentNotes = userNotes.slice(0, 3); // Show only recent 3 notes
+  const recentNotes = userNotes.slice(0, 3);
 
   const popularSubjects = [
     { name: 'Data Structures', notes: 45 },
@@ -96,7 +101,7 @@ const Dashboard = ({ user }) => {
             fontWeight: 'bold',
             flexShrink: 0
           }}>
-            {user.name.charAt(0).toUpperCase()}
+            {user?.name?.charAt(0).toUpperCase() || 'U'}
           </div>
           
           <div style={{ flex: 1, minWidth: '300px' }}>
@@ -107,7 +112,7 @@ const Dashboard = ({ user }) => {
               WebkitTextFillColor: 'transparent',
               fontSize: 'clamp(1.5rem, 4vw, 2.5rem)'
             }}>
-              Welcome back, {user.name}!
+              Welcome back, {user?.name || 'User'}!
             </h1>
             <p style={{ fontSize: '1.1rem', color: '#666', marginBottom: '0' }}>
               Manage your notes and track your contributions to the community.
@@ -127,9 +132,6 @@ const Dashboard = ({ user }) => {
           </div>
         </div>
       </div>
-
-
-      
 
       {/* Statistics Grid */}
       <div className="stats-grid">
@@ -184,7 +186,6 @@ const Dashboard = ({ user }) => {
 
       {/* Main Content Area */}
       <div className="dashboard-main">
-        {/* Left Column - Quick Actions & Recent Notes */}
         <div>
           {/* Quick Actions */}
           <div className="card">
@@ -254,37 +255,6 @@ const Dashboard = ({ user }) => {
                   Browse
                 </Link>
               </div>
-
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1.5rem',
-                padding: '1.5rem',
-                background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
-                borderRadius: '15px',
-                transition: 'all 0.3s ease'
-              }}>
-                <div style={{
-                  width: '60px',
-                  height: '60px',
-                  background: 'linear-gradient(135deg, #55efc4 0%, #00b894 100%)',
-                  borderRadius: '15px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.5rem',
-                  color: 'white'
-                }}>
-                  👤
-                </div>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ marginBottom: '0.3rem', color: '#2d3436' }}>Your Profile</h3>
-                  <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>View and update your profile information</p>
-                </div>
-                <Link to="/profile" className="btn btn-secondary">
-                  Profile
-                </Link>
-              </div>
             </div>
           </div>
 
@@ -312,7 +282,9 @@ const Dashboard = ({ user }) => {
                       height: '40px',
                       background: note.status === 'approved' 
                         ? 'linear-gradient(135deg, #55efc4 0%, #00b894 100%)'
-                        : 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)',
+                        : note.status === 'pending'
+                        ? 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)'
+                        : 'linear-gradient(135deg, #ff7675 0%, #d63031 100%)',
                       borderRadius: '10px',
                       display: 'flex',
                       alignItems: 'center',
@@ -320,12 +292,20 @@ const Dashboard = ({ user }) => {
                       fontSize: '1rem',
                       color: 'white'
                     }}>
-                      {note.status === 'approved' ? '✓' : '⏳'}
+                      {note.status === 'approved' ? '✓' : note.status === 'pending' ? '⏳' : '✗'}
                     </div>
                     <div style={{ flex: 1 }}>
                       <h4 style={{ margin: '0 0 0.3rem 0', color: '#2d3436' }}>{note.title}</h4>
                       <p style={{ margin: 0, color: '#666', fontSize: '0.8rem' }}>
-                        {note.subject} • {note.downloads || 0} downloads • {note.status === 'approved' ? 'Published' : 'Under Review'}
+                        {note.subject} • {note.downloads || 0} downloads • 
+                        <span style={{ 
+                          color: note.status === 'approved' ? '#00b894' : 
+                                 note.status === 'pending' ? '#fdcb6e' : '#d63031',
+                          fontWeight: 'bold'
+                        }}>
+                          {' '}{note.status === 'approved' ? 'Published' : 
+                             note.status === 'pending' ? 'Under Review' : 'Rejected'}
+                        </span>
                       </p>
                     </div>
                     <Link 
