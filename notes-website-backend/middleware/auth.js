@@ -43,20 +43,19 @@ export const auth = async (req, res, next) => {
  */
 export const adminAuth = async (req, res, next) => {
   try {
-    // First authenticate
-    await auth(req, res, () => {});
-    
-    // Then check admin role
     const user = await User.findById(req.user.id);
-    
     if (!user || user.role !== 'admin') {
-      return res.status(403).json({ message: 'Admin access required' });
+      return res.status(403).json({ 
+        success: false,
+        message: 'Admin access required' 
+      });
     }
-    
     next();
   } catch (error) {
-    console.error('Admin auth error:', error);
-    res.status(403).json({ message: 'Admin access required' });
+    res.status(403).json({ 
+      success: false,
+      message: 'Admin access required' 
+    });
   }
 };
 

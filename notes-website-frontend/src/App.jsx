@@ -93,10 +93,10 @@ function App() {
               <Route path="/contact" element={<Contact />} />
               
               {/* ← ADD THIS ROUTE */}
-              <Route 
-                path="/admin" 
-                element={user && user.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" />} 
-              />
+             <Route 
+  path="/admin" 
+  element={user && user.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" />} 
+/>
             </Routes>
           </main>
           <ToastContainer />
