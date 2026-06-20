@@ -466,7 +466,7 @@ body {
   font-weight: 600;
   margin-bottom: 0.3rem;
   font-size: 0.85rem;
-  color: #555;
+  color: #1a1a2e;
 }
 
 .form-control {
@@ -477,12 +477,17 @@ body {
   font-size: 0.9rem;
   transition: all 0.3s;
   background: white;
+  color: #1a1a2e;
 }
 
 .form-control:focus {
   outline: none;
   border-color: #6c63ff;
   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.1);
+}
+
+.form-control::placeholder {
+  color: #999;
 }
 
 /* ========== STATS ========== */
@@ -555,7 +560,7 @@ body {
   margin-bottom: 1rem;
 }
 
-/* ========== AUTH PAGES (Login/Register) ========== */
+/* ========== AUTH PAGES (Login/Register) - TEXT COLOR FIX ========== */
 .auth-container {
   background: white;
   padding: 2.5rem;
@@ -569,13 +574,13 @@ body {
 .auth-container h2 {
   text-align: center;
   margin-bottom: 0.5rem;
-  color: #1a1a2e;
+  color: #1a1a2e !important;
   font-size: 2rem;
 }
 
 .auth-container p {
   text-align: center;
-  color: #666;
+  color: #666 !important;
   margin-bottom: 2rem;
   font-size: 0.95rem;
 }
@@ -584,16 +589,36 @@ body {
   margin-bottom: 1.25rem;
 }
 
+.auth-container label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  font-size: 0.85rem;
+  color: #1a1a2e !important;
+}
+
 .auth-container .form-control {
   padding: 0.75rem 1rem;
   border: 2px solid #e8eaff;
   border-radius: 10px;
   font-size: 1rem;
+  color: #1a1a2e !important;
+  background: white !important;
 }
 
 .auth-container .form-control:focus {
   border-color: #6c63ff;
   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.1);
+}
+
+.auth-container .form-control::placeholder {
+  color: #999 !important;
+}
+
+.auth-container .invalid-feedback {
+  color: #ff6b6b !important;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
 }
 
 .auth-container .btn {
@@ -602,22 +627,23 @@ body {
   padding: 0.8rem;
   font-size: 1rem;
   border-radius: 10px;
+  color: white !important;
 }
 
-.auth-link {
+.auth-container .auth-link {
   text-align: center;
   margin-top: 1.5rem;
-  color: #666;
+  color: #666 !important;
 }
 
-.auth-link a {
-  color: #6c63ff;
+.auth-container .auth-link a {
+  color: #6c63ff !important;
   text-decoration: none;
   font-weight: 600;
 }
 
-.auth-link a:hover {
-  text-decoration: underline;
+.auth-container .auth-link a:hover {
+  text-decoration: underline !important;
 }
 
 /* ========== CONTACT PAGE ========== */
@@ -923,6 +949,7 @@ body {
   cursor: pointer;
   transition: all 0.3s;
   width: 100%;
+  color: #1a1a2e;
 }
 
 .file-upload-wrapper input[type="file"]:hover {

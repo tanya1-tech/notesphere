@@ -10,6 +10,7 @@ const noteSchema = new mongoose.Schema({
   description: {
     type: String,
     required: [true, 'Description is required'],
+    trim: true,
     maxlength: [2000, 'Description cannot exceed 2000 characters']
   },
   subject: {
@@ -66,6 +67,24 @@ const noteSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected', 'draft'],
     default: 'pending'
   },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  approvedAt: {
+    type: Date
+  },
+  rejectedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  rejectedAt: {
+    type: Date
+  },
+  rejectionReason: {
+    type: String,
+    trim: true
+  },
   downloads: {
     type: Number,
     default: 0,
@@ -107,16 +126,25 @@ const noteSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Indexes for better search performance
+// ============ INDEXES ============
+// Text search indexes
 noteSchema.index({ subject: 'text', title: 'text', description: 'text', tags: 'text' });
+
+// Filter indexes
 noteSchema.index({ semester: 1, branch: 1, course: 1 });
 noteSchema.index({ status: 1, createdAt: -1 });
 noteSchema.index({ uploadedBy: 1, createdAt: -1 });
 
+// ============ VIRTUALS ============
 // Virtual for file path
 noteSchema.virtual('filePath').get(function() {
-  return `/uploads/${this.file}`;
+  if (this.file) {
+    return `/uploads/${this.file}`;
+  }
+  return null;
 });
+
+// ============ INSTANCE METHODS ============
 
 // Method to get average rating
 noteSchema.methods.getAverageRating = function() {
@@ -156,16 +184,18 @@ noteSchema.methods.addReview = async function(userId, rating, comment) {
 // Method to increment downloads
 noteSchema.methods.incrementDownloads = async function() {
   this.downloads += 1;
-  await this.save();
+  await this.save({ validateBeforeSave: false });
   return this.downloads;
 };
 
 // Method to increment views
 noteSchema.methods.incrementViews = async function() {
   this.views += 1;
-  await this.save();
+  await this.save({ validateBeforeSave: false });
   return this.views;
 };
+
+// ============ STATIC METHODS ============
 
 // Static method to get popular notes
 noteSchema.statics.getPopularNotes = async function(limit = 10) {
@@ -197,6 +227,62 @@ noteSchema.statics.searchNotes = async function(searchTerm, filters = {}) {
   return this.find(query)
     .sort({ createdAt: -1 })
     .populate('uploadedBy', 'name email');
+};
+
+// Static method to get notes by user
+noteSchema.statics.getUserNotes = async function(userId, status = null) {
+  const query = { uploadedBy: userId };
+  if (status) query.status = status;
+  
+  return this.find(query)
+    .sort({ createdAt: -1 })
+    .populate('uploadedBy', 'name email');
+};
+
+// Static method to get notes by branch and semester
+noteSchema.statics.getNotesByBranchSemester = async function(branch, semester, limit = 50) {
+  return this.find({ 
+    status: 'approved',
+    branch,
+    semester
+  })
+  .sort({ downloads: -1 })
+  .limit(limit)
+  .populate('uploadedBy', 'name email');
+};
+
+// Static method to get pending notes (admin only)
+noteSchema.statics.getPendingNotes = async function() {
+  return this.find({ status: 'pending' })
+    .sort({ createdAt: 1 })
+    .populate('uploadedBy', 'name email');
+};
+
+// Static method to approve a note
+noteSchema.statics.approveNote = async function(noteId, adminId) {
+  return this.findByIdAndUpdate(
+    noteId,
+    {
+      status: 'approved',
+      approvedBy: adminId,
+      approvedAt: new Date()
+    },
+    { new: true, runValidators: true }
+  ).populate('uploadedBy', 'name email');
+};
+
+// Static method to reject a note
+noteSchema.statics.rejectNote = async function(noteId, adminId, reason) {
+  return this.findByIdAndUpdate(
+    noteId,
+    {
+      status: 'rejected',
+      rejectedBy: adminId,
+      rejectedAt: new Date(),
+      rejectionReason: reason || 'No reason provided'
+    },
+    { new: true, runValidators: true }
+  ).populate('uploadedBy', 'name email');
 };
 
 export default mongoose.model('Note', noteSchema);
