@@ -1,391 +1,390 @@
-import express from 'express';
-import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
-import Note from '../models/Note.js';
-import { auth, adminAuth } from '../middleware/auth.js';
-import { uploadLimiter } from '../middleware/rateLimiter.js';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { getNotes } from '../services/api';
 
-const router = express.Router();
+const Notes = () => {
+  const navigate = useNavigate();
+  const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    semester: '',
+    branch: '',
+    subject: '',
+    course: ''
+  });
 
-// ============ CLOUDINARY CONFIGURATION ============
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const CLOUD_NAME = 'dpova9h7g';
 
-// ============ MULTER STORAGE WITH CLOUDINARY ============
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'notesphere-notes',
-    resource_type: 'raw',
-    format: async (req, file) => 'pdf',
-    public_id: (req, file) => {
-      const timestamp = Date.now();
-      const random = Math.round(Math.random() * 1E9);
-      // ✅ Remove .pdf from original name to avoid double extension
-      const cleanName = file.originalname
-        .replace(/\s+/g, '_')
-        .replace(/[^a-zA-Z0-9_.-]/g, '')
-        .replace(/\.pdf$/i, '');
-      return `${timestamp}-${random}-${cleanName}`;
+  useEffect(() => {
+    loadNotes();
+  }, [filters]);
+
+  const loadNotes = async () => {
+    try {
+      setLoading(true);
+      console.log('Loading notes with filters:', filters);
+      
+      const { data } = await getNotes(filters);
+      console.log('API Response:', data);
+      
+      const approvedNotes = (data.notes || []).filter(note => note.status === 'approved');
+      setNotes(approvedNotes);
+      
+      console.log('Approved notes:', approvedNotes.length);
+      
+    } catch (error) {
+      console.error('Error loading notes:', error);
+      toast.error('Failed to load notes: ' + error.message);
+      setNotes([]);
+    } finally {
+      setLoading(false);
     }
-  }
-});
+  };
 
-const fileFilter = (req, file, cb) => {
-  if (file.mimetype === 'application/pdf') {
-    cb(null, true);
-  } else {
-    cb(new Error('Only PDF files are allowed'), false);
-  }
+  const handleViewPDF = (note) => {
+    try {
+      // ✅ Extract public ID from the file field
+      let publicId = note.file;
+      if (publicId.includes('/')) {
+        publicId = publicId.split('/').pop();
+      }
+      if (publicId.endsWith('.pdf')) {
+        publicId = publicId.slice(0, -4);
+      }
+      
+      const pdfUrl = `https://res.cloudinary.com/${CLOUD_NAME}/raw/upload/v1/notesphere-notes/${publicId}.pdf`;
+      console.log('📄 Opening PDF:', pdfUrl);
+      window.open(pdfUrl, '_blank');
+    } catch (error) {
+      console.error('Error viewing PDF:', error);
+      toast.error('Failed to open PDF');
+    }
+  };
+
+  const handleDownload = async (note) => {
+    try {
+      let publicId = note.file;
+      if (publicId.includes('/')) {
+        publicId = publicId.split('/').pop();
+      }
+      if (publicId.endsWith('.pdf')) {
+        publicId = publicId.slice(0, -4);
+      }
+      
+      const pdfUrl = `https://res.cloudinary.com/${CLOUD_NAME}/raw/upload/v1/notesphere-notes/${publicId}.pdf`;
+      console.log('📥 Downloading from:', pdfUrl);
+      
+      const response = await fetch(pdfUrl);
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${note.title}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      toast.success('Download started!');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Download failed: ' + error.message);
+    }
+  };
+
+  // Test direct API call
+  const testDirectAPI = async () => {
+    try {
+      console.log('Testing direct API call...');
+      const response = await fetch(`${API_URL}/api/notes/debug/all`);
+      const data = await response.json();
+      console.log('Direct API response:', data);
+      toast.info(`Found ${data.total} notes in database`);
+    } catch (error) {
+      console.error('Direct API test failed:', error);
+      toast.error('API test failed: ' + error.message);
+    }
+  };
+
+  return (
+    <div className="container">
+      <div className="card">
+        <h1>📚 Browse All Notes</h1>
+        <p>Discover study materials uploaded by students from various courses and branches.</p>
+        
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+          <button onClick={loadNotes} className="btn btn-secondary">
+            🔄 Reload Notes
+          </button>
+          <button onClick={testDirectAPI} className="btn btn-secondary">
+            🐛 Test API
+          </button>
+          <button 
+            onClick={() => {
+              setFilters({ semester: '', branch: '', subject: '', course: '' });
+              toast.info('Filters cleared');
+            }} 
+            className="btn btn-secondary"
+          >
+            🧹 Clear Filters
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="filters" style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1rem',
+        marginBottom: '2rem'
+      }}>
+        <div className="form-group">
+          <label>Semester</label>
+          <select 
+            className="form-control"
+            value={filters.semester} 
+            onChange={(e) => setFilters({...filters, semester: e.target.value})}
+          >
+            <option value="">All Semesters</option>
+            {[1,2,3,4,5,6,7,8].map(sem => (
+              <option key={sem} value={sem}>Semester {sem}</option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="form-group">
+          <label>Branch</label>
+          <select 
+            className="form-control"
+            value={filters.branch} 
+            onChange={(e) => setFilters({...filters, branch: e.target.value})}
+          >
+            <option value="">All Branches</option>
+            <option value="Computer Science & Engineering">Computer Science</option>
+            <option value="Information Technology">IT</option>
+            <option value="Electronics & Communication Engineering">ECE</option>
+            <option value="Mechanical Engineering">Mechanical</option>
+            <option value="Civil Engineering">Civil</option>
+            <option value="Electrical Engineering">Electrical</option>
+          </select>
+        </div>
+        
+        <div className="form-group">
+          <label>Course</label>
+          <select 
+            className="form-control"
+            value={filters.course} 
+            onChange={(e) => setFilters({...filters, course: e.target.value})}
+          >
+            <option value="">All Courses</option>
+            <option value="B.Tech">B.Tech</option>
+            <option value="B.E.">B.E.</option>
+            <option value="M.Tech">M.Tech</option>
+            <option value="MBA">MBA</option>
+            <option value="BCA">BCA</option>
+            <option value="MCA">MCA</option>
+            <option value="B.Sc">B.Sc</option>
+            <option value="M.Sc">M.Sc</option>
+          </select>
+        </div>
+        
+        <div className="form-group">
+          <label>Subject</label>
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search by subject..."
+            value={filters.subject}
+            onChange={(e) => setFilters({...filters, subject: e.target.value})}
+          />
+        </div>
+      </div>
+
+      {notes.length > 0 && (
+        <div className="card" style={{ background: '#f8f9fa', marginBottom: '2rem' }}>
+          <h3>📊 Summary</h3>
+          <p><strong>Showing:</strong> {notes.length} approved notes</p>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="card">
+          <div style={{ textAlign: 'center', padding: '3rem' }}>
+            <div className="loading">Loading notes...</div>
+          </div>
+        </div>
+      ) : (
+        <div className="notes-grid" style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          gap: '1.5rem'
+        }}>
+          {notes.length === 0 ? (
+            <div className="card" style={{ gridColumn: '1 / -1' }}>
+              <div style={{ textAlign: 'center', padding: '3rem' }}>
+                <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>📚</div>
+                <h3>No notes found</h3>
+                <p style={{ color: '#666', marginBottom: '2rem' }}>
+                  No approved notes matching your criteria were found.
+                </p>
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button 
+                    onClick={() => setFilters({ semester: '', branch: '', subject: '', course: '' })}
+                    className="btn btn-primary"
+                  >
+                    Clear All Filters
+                  </button>
+                  <button onClick={loadNotes} className="btn btn-secondary">
+                    Try Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            notes.map(note => (
+              <div key={note._id} className="note-card" style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '1.5rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    marginBottom: '0.5rem'
+                  }}>
+                    <span style={{ fontSize: '1.5rem' }}>📄</span>
+                    <h3 style={{ 
+                      margin: 0, 
+                      fontSize: '1.1rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical'
+                    }}>
+                      {note.title}
+                    </h3>
+                  </div>
+                  
+                  <p style={{ 
+                    color: '#666', 
+                    fontSize: '0.9rem',
+                    margin: '0.5rem 0',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical'
+                  }}>
+                    {note.description}
+                  </p>
+                  
+                  <div style={{ 
+                    display: 'flex', 
+                    flexWrap: 'wrap', 
+                    gap: '0.5rem',
+                    marginTop: '0.5rem'
+                  }}>
+                    <span style={{
+                      background: '#e3f2fd',
+                      color: '#1976d2',
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem'
+                    }}>
+                      {note.subject}
+                    </span>
+                    <span style={{
+                      background: '#f3e5f5',
+                      color: '#7b1fa2',
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem'
+                    }}>
+                      {note.branch}
+                    </span>
+                    <span style={{
+                      background: '#e8f5e9',
+                      color: '#2e7d32',
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem'
+                    }}>
+                      Sem {note.semester}
+                    </span>
+                    <span style={{
+                      background: '#fff3e0',
+                      color: '#e65100',
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem'
+                    }}>
+                      {note.course}
+                    </span>
+                  </div>
+                  
+                  <div style={{
+                    marginTop: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    fontSize: '0.8rem',
+                    color: '#888'
+                  }}>
+                    <span>👤 {note.uploadedBy?.name || 'Unknown'}</span>
+                    <span>📥 {note.downloads || 0}</span>
+                    <span>👁️ {note.views || 0}</span>
+                  </div>
+                </div>
+                
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '0.5rem', 
+                  marginTop: '1rem',
+                  borderTop: '1px solid #eee',
+                  paddingTop: '1rem'
+                }}>
+                  <button 
+                    onClick={() => handleViewPDF(note)}
+                    className="btn btn-primary"
+                    style={{ 
+                      flex: 1,
+                      padding: '0.5rem',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    👁️ View
+                  </button>
+                  <button 
+                    onClick={() => handleDownload(note)}
+                    className="btn btn-secondary"
+                    style={{ 
+                      flex: 1,
+                      padding: '0.5rem',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    📥 Download
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
-const upload = multer({
-  storage: storage,
-  limits: { 
-    fileSize: 10 * 1024 * 1024
-  },
-  fileFilter: fileFilter
-});
-
-// ============ UPLOAD NOTE ============
-router.post('/upload', auth, uploadLimiter, (req, res) => {
-  upload.single('file')(req, res, async function(err) {
-    try {
-      console.log('📤 Upload request received');
-      
-      if (err instanceof multer.MulterError) {
-        if (err.code === 'FILE_TOO_LARGE') {
-          return res.status(400).json({ 
-            success: false,
-            message: 'File size exceeds 10MB limit. Please compress your PDF.' 
-          });
-        }
-        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-          return res.status(400).json({ 
-            success: false,
-            message: 'Only one file is allowed' 
-          });
-        }
-        return res.status(400).json({ 
-          success: false,
-          message: err.message 
-        });
-      }
-      
-      if (err) {
-        return res.status(400).json({ 
-          success: false,
-          message: err.message 
-        });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'Please upload a PDF file' 
-        });
-      }
-
-      console.log('📄 File uploaded - Public ID:', req.file.filename);
-      console.log('📏 File size:', (req.file.size / 1024 / 1024).toFixed(2), 'MB');
-
-      // ✅ FIXED: req.file.filename already includes the folder path
-      // So we just use it directly without adding the folder again
-      const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-      const fileUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/v1/${req.file.filename}`;
-
-      console.log('📄 Generated URL:', fileUrl);
-
-      let tags = [];
-      if (req.body.tags) {
-        tags = req.body.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
-      }
-
-      const { title, description, subject, semester, branch, course } = req.body;
-      
-      if (!title || !description || !subject || !semester || !branch || !course) {
-        try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
-        return res.status(400).json({ 
-          success: false,
-          message: 'Missing required fields: title, description, subject, semester, branch, course are required' 
-        });
-      }
-
-      const note = new Note({
-        title: title.trim(),
-        description: description.trim(),
-        subject: subject.trim(),
-        semester: parseInt(semester),
-        branch: branch.trim(),
-        course: course.trim(),
-        courseCode: req.body.courseCode || '',
-        credits: parseInt(req.body.credits) || 3,
-        file: req.file.filename,
-        fileUrl: fileUrl,
-        fileSize: req.file.size,
-        tags: tags,
-        uploadedBy: req.user.id,
-        status: 'pending'
-      });
-
-      await note.save();
-      console.log('✅ Note created:', note._id);
-
-      res.status(201).json({
-        success: true,
-        message: 'Note uploaded successfully! Waiting for approval.',
-        note: {
-          id: note._id,
-          title: note.title,
-          status: note.status,
-          file: note.file,
-          fileUrl: note.fileUrl
-        }
-      });
-
-    } catch (error) {
-      console.error('❌ Upload error:', error);
-      
-      if (req.file) {
-        try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
-      }
-      
-      if (error.message && error.message.includes('File size too large')) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'File size exceeds Cloudinary limit. Please compress your PDF to under 10MB.' 
-        });
-      }
-      
-      res.status(500).json({ 
-        success: false,
-        message: 'Internal server error',
-        error: error.message 
-      });
-    }
-  });
-});
-
-// ============ GET USER'S NOTES ============
-router.get('/user/my-notes', auth, async (req, res) => {
-  try {
-    console.log('📥 Fetching notes for user:', req.user.id);
-    
-    const notes = await Note.find({ uploadedBy: req.user.id })
-      .sort({ createdAt: -1 })
-      .populate('uploadedBy', 'name email');
-    
-    console.log('✅ Found', notes.length, 'notes for user');
-    
-    // ✅ Include fileUrl in response
-    const notesWithUrl = notes.map(note => ({
-      ...note.toObject(),
-      fileUrl: note.fileUrl || null
-    }));
-    
-    res.json({
-      success: true,
-      count: notesWithUrl.length,
-      notes: notesWithUrl
-    });
-  } catch (error) {
-    console.error('❌ Get user notes error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to load user notes',
-      error: error.message 
-    });
-  }
-});
-
-// ============ GET ALL NOTES (PUBLIC) ============
-router.get('/', async (req, res) => {
-  try {
-    const { semester, branch, subject, course } = req.query;
-    const filter = { status: 'approved' };
-    
-    if (semester) filter.semester = parseInt(semester);
-    if (branch) filter.branch = branch;
-    if (subject) filter.subject = subject;
-    if (course) filter.course = course;
-    
-    const notes = await Note.find(filter)
-      .populate('uploadedBy', 'name email')
-      .sort({ createdAt: -1 });
-    
-    // ✅ Include fileUrl in response
-    const notesWithUrl = notes.map(note => ({
-      ...note.toObject(),
-      fileUrl: note.fileUrl || null
-    }));
-    
-    res.json({
-      success: true,
-      count: notesWithUrl.length,
-      notes: notesWithUrl
-    });
-  } catch (error) {
-    console.error('❌ Get notes error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Internal server error' 
-    });
-  }
-});
-
-// ============ ADMIN ROUTES ============
-// ⚠️ IMPORTANT: These MUST be BEFORE the /:id route
-
-// Get all pending notes (admin only)
-router.get('/pending', auth, adminAuth, async (req, res) => {
-  try {
-    console.log('📥 Fetching pending notes...');
-    
-    const notes = await Note.find({ status: 'pending' })
-      .populate('uploadedBy', 'name email')
-      .sort({ createdAt: -1 });
-    
-    // ✅ Include fileUrl in response
-    const notesWithUrl = notes.map(note => ({
-      ...note.toObject(),
-      fileUrl: note.fileUrl || null
-    }));
-    
-    console.log(`✅ Found ${notesWithUrl.length} pending notes`);
-    
-    res.json({
-      success: true,
-      count: notesWithUrl.length,
-      notes: notesWithUrl
-    });
-  } catch (error) {
-    console.error('❌ Get pending notes error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to load pending notes',
-      error: error.message 
-    });
-  }
-});
-
-// Approve a note (admin only)
-router.put('/:id/approve', auth, adminAuth, async (req, res) => {
-  try {
-    console.log('📤 Approving note:', req.params.id);
-    
-    const note = await Note.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: 'approved',
-        approvedBy: req.user.id,
-        approvedAt: new Date()
-      },
-      { new: true }
-    );
-    
-    if (!note) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Note not found' 
-      });
-    }
-    
-    console.log('✅ Note approved:', note._id);
-    
-    res.json({
-      success: true,
-      message: 'Note approved successfully',
-      note
-    });
-  } catch (error) {
-    console.error('❌ Approve note error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to approve note',
-      error: error.message 
-    });
-  }
-});
-
-// Reject a note (admin only)
-router.put('/:id/reject', auth, adminAuth, async (req, res) => {
-  try {
-    const { reason } = req.body;
-    console.log('📤 Rejecting note:', req.params.id);
-    
-    const note = await Note.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: 'rejected',
-        rejectedBy: req.user.id,
-        rejectedAt: new Date(),
-        rejectionReason: reason || 'No reason provided'
-      },
-      { new: true }
-    );
-    
-    if (!note) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Note not found' 
-      });
-    }
-    
-    console.log('❌ Note rejected:', note._id);
-    
-    res.json({
-      success: true,
-      message: 'Note rejected',
-      note
-    });
-  } catch (error) {
-    console.error('❌ Reject note error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to reject note',
-      error: error.message 
-    });
-  }
-});
-
-// ============ GET SINGLE NOTE ============
-// ⚠️ This MUST be LAST - it catches any /:id requests
-router.get('/:id', async (req, res) => {
-  try {
-    const note = await Note.findById(req.params.id)
-      .populate('uploadedBy', 'name email');
-    
-    if (!note) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Note not found' 
-      });
-    }
-    
-    note.views += 1;
-    await note.save({ validateBeforeSave: false });
-    
-    // ✅ Include fileUrl in response
-    const noteWithUrl = {
-      ...note.toObject(),
-      fileUrl: note.fileUrl || null
-    };
-    
-    res.json({
-      success: true,
-      note: noteWithUrl
-    });
-  } catch (error) {
-    console.error('❌ Get note error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Internal server error' 
-    });
-  }
-});
-
-export default router;
+export default Notes;
