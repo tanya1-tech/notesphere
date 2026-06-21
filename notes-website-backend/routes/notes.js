@@ -1,36 +1,40 @@
 import express from 'express';
 import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import Note from '../models/Note.js';
 import { auth, adminAuth } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const router = express.Router();
 
-// ============ CLOUDINARY CONFIGURATION ============
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+// ============ ENSURE UPLOADS DIRECTORY EXISTS ============
+const uploadDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadDir)) {
+  try {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('📁 Uploads directory created:', uploadDir);
+  } catch (err) {
+    console.error('❌ Failed to create uploads directory:', err);
+  }
+}
 
-// ============ MULTER STORAGE WITH CLOUDINARY ============
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'notesphere-notes',
-    resource_type: 'raw',
-    format: async (req, file) => 'pdf',
-    public_id: (req, file) => {
-      const timestamp = Date.now();
-      const random = Math.round(Math.random() * 1E9);
-      const cleanName = file.originalname
-        .replace(/\s+/g, '_')
-        .replace(/[^a-zA-Z0-9_.-]/g, '')
-        .replace(/\.pdf$/i, '');
-      return `${timestamp}-${random}-${cleanName}`;
-    }
+// ============ LOCAL STORAGE ============
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    const random = Math.round(Math.random() * 1E9);
+    const cleanName = file.originalname
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9_.-]/g, '');
+    cb(null, `${timestamp}-${random}-${cleanName}`);
   }
 });
 
@@ -45,7 +49,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage: storage,
   limits: { 
-    fileSize: 10 * 1024 * 1024
+    fileSize: 10 * 1024 * 1024 // 10MB
   },
   fileFilter: fileFilter
 });
@@ -60,7 +64,13 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         if (err.code === 'FILE_TOO_LARGE') {
           return res.status(400).json({ 
             success: false,
-            message: 'File size exceeds 10MB limit.' 
+            message: 'File size exceeds 10MB limit. Please compress your PDF.' 
+          });
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({ 
+            success: false,
+            message: 'Only one file is allowed' 
           });
         }
         return res.status(400).json({ 
@@ -83,18 +93,14 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         });
       }
 
-      console.log('📄 File uploaded - Public ID:', req.file.filename);
+      console.log('📄 File saved locally:', req.file.filename);
       console.log('📏 File size:', (req.file.size / 1024 / 1024).toFixed(2), 'MB');
 
-      // ✅ Generate both URLs
-      const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-      const fileUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/v1/${req.file.filename}`;
-      
-      // ✅ Download URL with fl_attachment flag - forces download instead of view
-      const downloadUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/fl_attachment/v1/${req.file.filename}`;
+      // ✅ Generate local URL
+      const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
+      const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
 
-      console.log('📄 View URL:', fileUrl);
-      console.log('📥 Download URL:', downloadUrl);
+      console.log('📄 File URL:', fileUrl);
 
       let tags = [];
       if (req.body.tags) {
@@ -104,10 +110,11 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       const { title, description, subject, semester, branch, course } = req.body;
       
       if (!title || !description || !subject || !semester || !branch || !course) {
-        try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
+        // Delete file if validation fails
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
         return res.status(400).json({ 
           success: false,
-          message: 'Missing required fields' 
+          message: 'Missing required fields: title, description, subject, semester, branch, course are required' 
         });
       }
 
@@ -122,7 +129,6 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         credits: parseInt(req.body.credits) || 3,
         file: req.file.filename,
         fileUrl: fileUrl,
-        downloadUrl: downloadUrl,  // ✅ Save download URL
         fileSize: req.file.size,
         tags: tags,
         uploadedBy: req.user.id,
@@ -134,14 +140,13 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
 
       res.status(201).json({
         success: true,
-        message: 'Note uploaded successfully!',
+        message: 'Note uploaded successfully! Waiting for approval.',
         note: {
           id: note._id,
           title: note.title,
           status: note.status,
           file: note.file,
-          fileUrl: note.fileUrl,
-          downloadUrl: note.downloadUrl
+          fileUrl: note.fileUrl
         }
       });
 
@@ -149,7 +154,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       console.error('❌ Upload error:', error);
       
       if (req.file) {
-        try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
       }
       
       res.status(500).json({ 
@@ -174,8 +179,7 @@ router.get('/user/my-notes', auth, async (req, res) => {
     
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
-      fileUrl: note.fileUrl || null,
-      downloadUrl: note.downloadUrl || note.fileUrl || null
+      fileUrl: note.fileUrl || null
     }));
     
     res.json({
@@ -210,8 +214,7 @@ router.get('/', async (req, res) => {
     
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
-      fileUrl: note.fileUrl || null,
-      downloadUrl: note.downloadUrl || note.fileUrl || null
+      fileUrl: note.fileUrl || null
     }));
     
     res.json({
@@ -242,8 +245,7 @@ router.get('/pending', auth, adminAuth, async (req, res) => {
     
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
-      fileUrl: note.fileUrl || null,
-      downloadUrl: note.downloadUrl || note.fileUrl || null
+      fileUrl: note.fileUrl || null
     }));
     
     console.log(`✅ Found ${notesWithUrl.length} pending notes`);
@@ -362,8 +364,7 @@ router.get('/:id', async (req, res) => {
     
     const noteWithUrl = {
       ...note.toObject(),
-      fileUrl: note.fileUrl || null,
-      downloadUrl: note.downloadUrl || note.fileUrl || null
+      fileUrl: note.fileUrl || null
     };
     
     res.json({
