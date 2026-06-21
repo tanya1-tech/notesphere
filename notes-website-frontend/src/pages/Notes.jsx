@@ -42,69 +42,67 @@ const Notes = () => {
     }
   };
 
-  // ✅ Use the fileUrl directly from the database
+  // ✅ View PDF - uses downloadUrl to force download
   const handleViewPDF = (note) => {
-  try {
-    // ✅ Use downloadUrl (with fl_attachment) to force download
-    const pdfUrl = note.downloadUrl || note.fileUrl;
-    
-    if (!pdfUrl) {
-      toast.error('No PDF URL available');
-      return;
+    try {
+      const pdfUrl = note.downloadUrl || note.fileUrl;
+      
+      if (!pdfUrl) {
+        toast.error('No PDF URL available');
+        return;
+      }
+      
+      console.log('📄 Opening PDF:', pdfUrl);
+      window.open(pdfUrl, '_blank');
+    } catch (error) {
+      console.error('Error viewing PDF:', error);
+      toast.error('Failed to open PDF');
     }
-    
-    console.log('📄 Opening PDF:', pdfUrl);
-    window.open(pdfUrl, '_blank');
-  } catch (error) {
-    console.error('Error viewing PDF:', error);
-    toast.error('Failed to open PDF');
-  }
-};
+  };
 
-const handleDownload = async (note) => {
-  try {
-    // ✅ Use downloadUrl (with fl_attachment)
-    const pdfUrl = note.downloadUrl || note.fileUrl;
-    
-    if (!pdfUrl) {
-      toast.error('No PDF URL available');
-      return;
+  // ✅ Download PDF
+  const handleDownload = async (note) => {
+    try {
+      const pdfUrl = note.downloadUrl || note.fileUrl;
+      
+      if (!pdfUrl) {
+        toast.error('No PDF URL available');
+        return;
+      }
+      
+      console.log('📥 Downloading from:', pdfUrl);
+      
+      const response = await fetch(pdfUrl);
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${note.title}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      toast.success('Download started!');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Download failed: ' + error.message);
     }
-    
-    console.log('📥 Downloading from:', pdfUrl);
-    
-    const response = await fetch(pdfUrl);
-    if (!response.ok) {
-      throw new Error(`Download failed: ${response.status}`);
-    }
-    
-    const blob = await response.blob();
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${note.title}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-    toast.success('Download started!');
-  } catch (error) {
-    console.error('Download error:', error);
-    toast.error('Download failed: ' + error.message);
-  }
-};
+  };
+
   return (
     <div className="container">
       <div className="card">
         <h1>📚 Browse All Notes</h1>
         <p>Discover study materials uploaded by students from various courses and branches.</p>
         
+        {/* ✅ Removed testDirectAPI button - it was causing the error */}
         <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
           <button onClick={loadNotes} className="btn btn-secondary">
             🔄 Reload Notes
-          </button>
-          <button onClick={testDirectAPI} className="btn btn-secondary">
-            🐛 Test API
           </button>
           <button 
             onClick={() => {
