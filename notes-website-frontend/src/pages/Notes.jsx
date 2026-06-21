@@ -15,7 +15,6 @@ const Notes = () => {
   });
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  const CLOUD_NAME = 'dpova9h7g';
 
   useEffect(() => {
     loadNotes();
@@ -43,46 +42,49 @@ const Notes = () => {
     }
   };
 
-  // ✅ UPDATED: Use Cloudinary's image transformation to view PDF as image
+  // ✅ Use the fileUrl directly from the database
   const handleViewPDF = (note) => {
     try {
-      let publicId = note.file;
-      if (publicId.includes('/')) {
-        publicId = publicId.split('/').pop();
-      }
-      if (publicId.endsWith('.pdf')) {
-        publicId = publicId.slice(0, -4);
+      const pdfUrl = note.fileUrl;
+      
+      if (!pdfUrl) {
+        toast.error('No PDF URL available');
+        return;
       }
       
-      // ✅ Convert PDF to image (jpg format) - works on free tier
-      const imageUrl = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/v1/notesphere-notes/${publicId}.jpg`;
-      console.log('📄 Opening PDF as image:', imageUrl);
-      
-      // Open in new tab
-      window.open(imageUrl, '_blank');
+      console.log('📄 Opening PDF:', pdfUrl);
+      window.open(pdfUrl, '_blank');
     } catch (error) {
       console.error('Error viewing PDF:', error);
       toast.error('Failed to open PDF');
     }
   };
 
-  // ✅ UPDATED: Download using Cloudinary's raw URL with a workaround
   const handleDownload = async (note) => {
     try {
-      let publicId = note.file;
-      if (publicId.includes('/')) {
-        publicId = publicId.split('/').pop();
-      }
-      if (publicId.endsWith('.pdf')) {
-        publicId = publicId.slice(0, -4);
+      const pdfUrl = note.fileUrl;
+      
+      if (!pdfUrl) {
+        toast.error('No PDF URL available');
+        return;
       }
       
-      // ✅ Use Cloudinary's image URL with fl_attachment to force download
-      const downloadUrl = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/fl_attachment/v1/notesphere-notes/${publicId}.pdf`;
-      console.log('📥 Downloading from:', downloadUrl);
+      console.log('📥 Downloading from:', pdfUrl);
       
-      // Open in new tab to download
-      window.open(downloadUrl, '_blank');
+      const response = await fetch(pdfUrl);
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${note.title}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
       toast.success('Download started!');
     } catch (error) {
       console.error('Download error:', error);
