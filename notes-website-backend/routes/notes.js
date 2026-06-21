@@ -100,7 +100,8 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       }
       
       const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-      const fileUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/v1/notesphere-notes/${publicId}.pdf`;
+// ✅ Remove the folder name from the URL since req.file.filename already includes it
+const fileUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/v1/${req.file.filename}`;
 
       console.log('📄 Generated URL:', fileUrl);
 
