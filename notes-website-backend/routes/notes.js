@@ -60,13 +60,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         if (err.code === 'FILE_TOO_LARGE') {
           return res.status(400).json({ 
             success: false,
-            message: 'File size exceeds 10MB limit. Please compress your PDF.' 
-          });
-        }
-        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-          return res.status(400).json({ 
-            success: false,
-            message: 'Only one file is allowed' 
+            message: 'File size exceeds 10MB limit.' 
           });
         }
         return res.status(400).json({ 
@@ -92,10 +86,15 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       console.log('📄 File uploaded - Public ID:', req.file.filename);
       console.log('📏 File size:', (req.file.size / 1024 / 1024).toFixed(2), 'MB');
 
-      // Generate Cloudinary URL
+      // ✅ Generate both URLs
       const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
       const fileUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/v1/${req.file.filename}`;
-      console.log('📄 Generated URL:', fileUrl);
+      
+      // ✅ Download URL with fl_attachment flag - forces download instead of view
+      const downloadUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/fl_attachment/v1/${req.file.filename}`;
+
+      console.log('📄 View URL:', fileUrl);
+      console.log('📥 Download URL:', downloadUrl);
 
       let tags = [];
       if (req.body.tags) {
@@ -108,7 +107,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
         return res.status(400).json({ 
           success: false,
-          message: 'Missing required fields: title, description, subject, semester, branch, course are required' 
+          message: 'Missing required fields' 
         });
       }
 
@@ -123,6 +122,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         credits: parseInt(req.body.credits) || 3,
         file: req.file.filename,
         fileUrl: fileUrl,
+        downloadUrl: downloadUrl,  // ✅ Save download URL
         fileSize: req.file.size,
         tags: tags,
         uploadedBy: req.user.id,
@@ -134,13 +134,14 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
 
       res.status(201).json({
         success: true,
-        message: 'Note uploaded successfully! Waiting for approval.',
+        message: 'Note uploaded successfully!',
         note: {
           id: note._id,
           title: note.title,
           status: note.status,
           file: note.file,
-          fileUrl: note.fileUrl
+          fileUrl: note.fileUrl,
+          downloadUrl: note.downloadUrl
         }
       });
 
@@ -149,13 +150,6 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       
       if (req.file) {
         try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
-      }
-      
-      if (error.message && error.message.includes('File size too large')) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'File size exceeds Cloudinary limit. Please compress your PDF to under 10MB.' 
-        });
       }
       
       res.status(500).json({ 
@@ -180,7 +174,8 @@ router.get('/user/my-notes', auth, async (req, res) => {
     
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
-      fileUrl: note.fileUrl || null
+      fileUrl: note.fileUrl || null,
+      downloadUrl: note.downloadUrl || note.fileUrl || null
     }));
     
     res.json({
@@ -215,7 +210,8 @@ router.get('/', async (req, res) => {
     
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
-      fileUrl: note.fileUrl || null
+      fileUrl: note.fileUrl || null,
+      downloadUrl: note.downloadUrl || note.fileUrl || null
     }));
     
     res.json({
@@ -246,7 +242,8 @@ router.get('/pending', auth, adminAuth, async (req, res) => {
     
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
-      fileUrl: note.fileUrl || null
+      fileUrl: note.fileUrl || null,
+      downloadUrl: note.downloadUrl || note.fileUrl || null
     }));
     
     console.log(`✅ Found ${notesWithUrl.length} pending notes`);
@@ -365,7 +362,8 @@ router.get('/:id', async (req, res) => {
     
     const noteWithUrl = {
       ...note.toObject(),
-      fileUrl: note.fileUrl || null
+      fileUrl: note.fileUrl || null,
+      downloadUrl: note.downloadUrl || note.fileUrl || null
     };
     
     res.json({

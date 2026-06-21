@@ -44,68 +44,55 @@ const Notes = () => {
 
   // ✅ Use the fileUrl directly from the database
   const handleViewPDF = (note) => {
-    try {
-      const pdfUrl = note.fileUrl;
-      
-      if (!pdfUrl) {
-        toast.error('No PDF URL available');
-        return;
-      }
-      
-      console.log('📄 Opening PDF:', pdfUrl);
-      window.open(pdfUrl, '_blank');
-    } catch (error) {
-      console.error('Error viewing PDF:', error);
-      toast.error('Failed to open PDF');
+  try {
+    // ✅ Use downloadUrl (with fl_attachment) to force download
+    const pdfUrl = note.downloadUrl || note.fileUrl;
+    
+    if (!pdfUrl) {
+      toast.error('No PDF URL available');
+      return;
     }
-  };
+    
+    console.log('📄 Opening PDF:', pdfUrl);
+    window.open(pdfUrl, '_blank');
+  } catch (error) {
+    console.error('Error viewing PDF:', error);
+    toast.error('Failed to open PDF');
+  }
+};
 
-  const handleDownload = async (note) => {
-    try {
-      const pdfUrl = note.fileUrl;
-      
-      if (!pdfUrl) {
-        toast.error('No PDF URL available');
-        return;
-      }
-      
-      console.log('📥 Downloading from:', pdfUrl);
-      
-      const response = await fetch(pdfUrl);
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.status}`);
-      }
-      
-      const blob = await response.blob();
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `${note.title}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-      toast.success('Download started!');
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error('Download failed: ' + error.message);
+const handleDownload = async (note) => {
+  try {
+    // ✅ Use downloadUrl (with fl_attachment)
+    const pdfUrl = note.downloadUrl || note.fileUrl;
+    
+    if (!pdfUrl) {
+      toast.error('No PDF URL available');
+      return;
     }
-  };
-
-  // Test direct API call
-  const testDirectAPI = async () => {
-    try {
-      console.log('Testing direct API call...');
-      const response = await fetch(`${API_URL}/api/notes/debug/all`);
-      const data = await response.json();
-      console.log('Direct API response:', data);
-      toast.info(`Found ${data.total} notes in database`);
-    } catch (error) {
-      console.error('Direct API test failed:', error);
-      toast.error('API test failed: ' + error.message);
+    
+    console.log('📥 Downloading from:', pdfUrl);
+    
+    const response = await fetch(pdfUrl);
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
     }
-  };
-
+    
+    const blob = await response.blob();
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${note.title}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+    toast.success('Download started!');
+  } catch (error) {
+    console.error('Download error:', error);
+    toast.error('Download failed: ' + error.message);
+  }
+};
   return (
     <div className="container">
       <div className="card">
