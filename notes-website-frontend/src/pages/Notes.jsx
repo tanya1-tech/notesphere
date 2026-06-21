@@ -43,9 +43,9 @@ const Notes = () => {
     }
   };
 
+  // ✅ UPDATED: Use Cloudinary's image transformation to view PDF as image
   const handleViewPDF = (note) => {
     try {
-      // ✅ Extract public ID from the file field
       let publicId = note.file;
       if (publicId.includes('/')) {
         publicId = publicId.split('/').pop();
@@ -54,15 +54,19 @@ const Notes = () => {
         publicId = publicId.slice(0, -4);
       }
       
-      const pdfUrl = `https://res.cloudinary.com/${CLOUD_NAME}/raw/upload/v1/notesphere-notes/${publicId}.pdf`;
-      console.log('📄 Opening PDF:', pdfUrl);
-      window.open(pdfUrl, '_blank');
+      // ✅ Convert PDF to image (jpg format) - works on free tier
+      const imageUrl = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/v1/notesphere-notes/${publicId}.jpg`;
+      console.log('📄 Opening PDF as image:', imageUrl);
+      
+      // Open in new tab
+      window.open(imageUrl, '_blank');
     } catch (error) {
       console.error('Error viewing PDF:', error);
       toast.error('Failed to open PDF');
     }
   };
 
+  // ✅ UPDATED: Download using Cloudinary's raw URL with a workaround
   const handleDownload = async (note) => {
     try {
       let publicId = note.file;
@@ -73,23 +77,12 @@ const Notes = () => {
         publicId = publicId.slice(0, -4);
       }
       
-      const pdfUrl = `https://res.cloudinary.com/${CLOUD_NAME}/raw/upload/v1/notesphere-notes/${publicId}.pdf`;
-      console.log('📥 Downloading from:', pdfUrl);
+      // ✅ Use Cloudinary's image URL with fl_attachment to force download
+      const downloadUrl = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/fl_attachment/v1/notesphere-notes/${publicId}.pdf`;
+      console.log('📥 Downloading from:', downloadUrl);
       
-      const response = await fetch(pdfUrl);
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.status}`);
-      }
-      
-      const blob = await response.blob();
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `${note.title}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      // Open in new tab to download
+      window.open(downloadUrl, '_blank');
       toast.success('Download started!');
     } catch (error) {
       console.error('Download error:', error);
