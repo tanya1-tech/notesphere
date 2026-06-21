@@ -15,6 +15,7 @@ const Notes = () => {
   });
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const CLOUD_NAME = 'dpova9h7g';
 
   useEffect(() => {
     loadNotes();
@@ -42,11 +43,18 @@ const Notes = () => {
     }
   };
 
-  // ✅ SINGLE handleViewPDF function (not duplicated)
   const handleViewPDF = (note) => {
     try {
-      // Use the stored fileUrl (Cloudinary URL) or fallback to local
-      const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
+      // ✅ Extract public ID from the file field
+      let publicId = note.file;
+      if (publicId.includes('/')) {
+        publicId = publicId.split('/').pop();
+      }
+      if (publicId.endsWith('.pdf')) {
+        publicId = publicId.slice(0, -4);
+      }
+      
+      const pdfUrl = `https://res.cloudinary.com/${CLOUD_NAME}/raw/upload/v1/notesphere-notes/${publicId}.pdf`;
       console.log('📄 Opening PDF:', pdfUrl);
       window.open(pdfUrl, '_blank');
     } catch (error) {
@@ -55,21 +63,25 @@ const Notes = () => {
     }
   };
 
-  // ✅ UPDATED: Use fileUrl from Cloudinary
   const handleDownload = async (note) => {
     try {
-      const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
+      let publicId = note.file;
+      if (publicId.includes('/')) {
+        publicId = publicId.split('/').pop();
+      }
+      if (publicId.endsWith('.pdf')) {
+        publicId = publicId.slice(0, -4);
+      }
+      
+      const pdfUrl = `https://res.cloudinary.com/${CLOUD_NAME}/raw/upload/v1/notesphere-notes/${publicId}.pdf`;
       console.log('📥 Downloading from:', pdfUrl);
       
       const response = await fetch(pdfUrl);
-      
       if (!response.ok) {
         throw new Error(`Download failed: ${response.status}`);
       }
       
       const blob = await response.blob();
-      
-      // Create download link
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = `${note.title}.pdf`;
@@ -78,7 +90,6 @@ const Notes = () => {
       document.body.removeChild(link);
       
       setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-      
       toast.success('Download started!');
     } catch (error) {
       console.error('Download error:', error);
@@ -106,7 +117,6 @@ const Notes = () => {
         <h1>📚 Browse All Notes</h1>
         <p>Discover study materials uploaded by students from various courses and branches.</p>
         
-        {/* Debug buttons */}
         <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
           <button onClick={loadNotes} className="btn btn-secondary">
             🔄 Reload Notes
@@ -195,7 +205,6 @@ const Notes = () => {
         </div>
       </div>
 
-      {/* Summary */}
       {notes.length > 0 && (
         <div className="card" style={{ background: '#f8f9fa', marginBottom: '2rem' }}>
           <h3>📊 Summary</h3>
