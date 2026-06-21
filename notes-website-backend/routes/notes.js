@@ -20,6 +20,7 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'notesphere-notes',
+    resource_type: 'raw',  // ✅ Use 'raw' for PDF files
     format: async (req, file) => 'pdf',
     public_id: (req, file) => {
       const timestamp = Date.now();
@@ -87,8 +88,18 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         });
       }
 
-      console.log('📄 File uploaded to Cloudinary:', req.file.path);
+      console.log('📄 File uploaded to Cloudinary - Public ID:', req.file.filename);
       console.log('📏 File size:', (req.file.size / 1024 / 1024).toFixed(2), 'MB');
+
+      // ✅ Generate secure Cloudinary URL
+      const publicId = req.file.filename;
+      const fileUrl = cloudinary.url(publicId, {
+        resource_type: 'raw',
+        secure: true,
+        format: 'pdf'
+      });
+
+      console.log('📄 Secure URL:', fileUrl);
 
       let tags = [];
       if (req.body.tags) {
@@ -98,7 +109,8 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       const { title, description, subject, semester, branch, course } = req.body;
       
       if (!title || !description || !subject || !semester || !branch || !course) {
-        try { await cloudinary.uploader.destroy(req.file.filename); } catch (e) {}
+        // Delete from Cloudinary if validation fails
+        try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
         return res.status(400).json({ 
           success: false,
           message: 'Missing required fields: title, description, subject, semester, branch, course are required' 
@@ -115,7 +127,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         courseCode: req.body.courseCode || '',
         credits: parseInt(req.body.credits) || 3,
         file: req.file.filename,
-        fileUrl: req.file.path, // ✅ Cloudinary URL
+        fileUrl: fileUrl,  // ✅ Store the secure Cloudinary URL
         fileSize: req.file.size,
         tags: tags,
         uploadedBy: req.user.id,
@@ -140,8 +152,9 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
     } catch (error) {
       console.error('❌ Upload error:', error);
       
+      // Delete from Cloudinary if there was an error
       if (req.file) {
-        try { await cloudinary.uploader.destroy(req.file.filename); } catch (e) {}
+        try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
       }
       
       if (error.message && error.message.includes('File size too large')) {
@@ -228,6 +241,9 @@ router.get('/', async (req, res) => {
 });
 
 // ============ ADMIN ROUTES ============
+// ⚠️ IMPORTANT: These MUST be BEFORE the /:id route
+
+// Get all pending notes (admin only)
 router.get('/pending', auth, adminAuth, async (req, res) => {
   try {
     console.log('📥 Fetching pending notes...');
@@ -340,6 +356,7 @@ router.put('/:id/reject', auth, adminAuth, async (req, res) => {
 });
 
 // ============ GET SINGLE NOTE ============
+// ⚠️ This MUST be LAST - it catches any /:id requests
 router.get('/:id', async (req, res) => {
   try {
     const note = await Note.findById(req.params.id)

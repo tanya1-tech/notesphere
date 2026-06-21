@@ -42,14 +42,12 @@ const Notes = () => {
     }
   };
 
-  // ✅ UPDATED: Use fileUrl from Cloudinary
+  // ✅ SINGLE handleViewPDF function (not duplicated)
   const handleViewPDF = (note) => {
     try {
-      // Use Cloudinary URL if available
+      // Use the stored fileUrl (Cloudinary URL) or fallback to local
       const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
       console.log('📄 Opening PDF:', pdfUrl);
-      
-      // Open in new tab
       window.open(pdfUrl, '_blank');
     } catch (error) {
       console.error('Error viewing PDF:', error);
@@ -63,11 +61,7 @@ const Notes = () => {
       const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
       console.log('📥 Downloading from:', pdfUrl);
       
-      const response = await fetch(pdfUrl, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      const response = await fetch(pdfUrl);
       
       if (!response.ok) {
         throw new Error(`Download failed: ${response.status}`);
