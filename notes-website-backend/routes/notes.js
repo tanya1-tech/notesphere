@@ -93,15 +93,10 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       console.log('📄 File uploaded - Public ID:', req.file.filename);
       console.log('📏 File size:', (req.file.size / 1024 / 1024).toFixed(2), 'MB');
 
-      // ✅ Generate correct Cloudinary URL without double .pdf
-      let publicId = req.file.filename;
-      if (publicId.endsWith('.pdf')) {
-        publicId = publicId.slice(0, -4);
-      }
-      
+      // ✅ FIXED: req.file.filename already includes the folder path
+      // So we just use it directly without adding the folder again
       const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-// ✅ Remove the folder name from the URL since req.file.filename already includes it
-const fileUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/v1/${req.file.filename}`;
+      const fileUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/v1/${req.file.filename}`;
 
       console.log('📄 Generated URL:', fileUrl);
 
