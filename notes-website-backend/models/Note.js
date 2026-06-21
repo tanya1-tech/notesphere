@@ -53,16 +53,14 @@ const noteSchema = new mongoose.Schema({
     type: String,
     required: [true, 'File is required']
   },
+  fileUrl: {
+    type: String,
+    default: null
+  },
   fileSize: {
     type: Number,
     default: 0
   },
-
-  fileUrl: {
-  type: String,
-  default: null
-},
-
   uploadedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -133,16 +131,12 @@ const noteSchema = new mongoose.Schema({
 });
 
 // ============ INDEXES ============
-// Text search indexes
 noteSchema.index({ subject: 'text', title: 'text', description: 'text', tags: 'text' });
-
-// Filter indexes
 noteSchema.index({ semester: 1, branch: 1, course: 1 });
 noteSchema.index({ status: 1, createdAt: -1 });
 noteSchema.index({ uploadedBy: 1, createdAt: -1 });
 
 // ============ VIRTUALS ============
-// Virtual for file path
 noteSchema.virtual('filePath').get(function() {
   if (this.file) {
     return `/uploads/${this.file}`;
@@ -151,28 +145,22 @@ noteSchema.virtual('filePath').get(function() {
 });
 
 // ============ INSTANCE METHODS ============
-
-// Method to get average rating
 noteSchema.methods.getAverageRating = function() {
   if (this.reviews.length === 0) return 0;
   const total = this.reviews.reduce((sum, review) => sum + review.rating, 0);
   return Math.round((total / this.reviews.length) * 10) / 10;
 };
 
-// Method to add a review
 noteSchema.methods.addReview = async function(userId, rating, comment) {
-  // Check if user already reviewed
   const existingReview = this.reviews.find(
     review => review.user.toString() === userId.toString()
   );
   
   if (existingReview) {
-    // Update existing review
     existingReview.rating = rating;
     existingReview.comment = comment;
     existingReview.createdAt = Date.now();
   } else {
-    // Add new review
     this.reviews.push({
       user: userId,
       rating,
@@ -180,21 +168,17 @@ noteSchema.methods.addReview = async function(userId, rating, comment) {
     });
   }
   
-  // Update average rating
   this.rating = this.getAverageRating();
   await this.save();
-  
   return this;
 };
 
-// Method to increment downloads
 noteSchema.methods.incrementDownloads = async function() {
   this.downloads += 1;
   await this.save({ validateBeforeSave: false });
   return this.downloads;
 };
 
-// Method to increment views
 noteSchema.methods.incrementViews = async function() {
   this.views += 1;
   await this.save({ validateBeforeSave: false });
@@ -202,8 +186,6 @@ noteSchema.methods.incrementViews = async function() {
 };
 
 // ============ STATIC METHODS ============
-
-// Static method to get popular notes
 noteSchema.statics.getPopularNotes = async function(limit = 10) {
   return this.find({ status: 'approved' })
     .sort({ downloads: -1, views: -1 })
@@ -211,7 +193,6 @@ noteSchema.statics.getPopularNotes = async function(limit = 10) {
     .populate('uploadedBy', 'name email');
 };
 
-// Static method to get recent notes
 noteSchema.statics.getRecentNotes = async function(limit = 10) {
   return this.find({ status: 'approved' })
     .sort({ createdAt: -1 })
@@ -219,7 +200,6 @@ noteSchema.statics.getRecentNotes = async function(limit = 10) {
     .populate('uploadedBy', 'name email');
 };
 
-// Static method to search notes
 noteSchema.statics.searchNotes = async function(searchTerm, filters = {}) {
   const query = {
     status: 'approved',
@@ -235,7 +215,6 @@ noteSchema.statics.searchNotes = async function(searchTerm, filters = {}) {
     .populate('uploadedBy', 'name email');
 };
 
-// Static method to get notes by user
 noteSchema.statics.getUserNotes = async function(userId, status = null) {
   const query = { uploadedBy: userId };
   if (status) query.status = status;
@@ -245,7 +224,6 @@ noteSchema.statics.getUserNotes = async function(userId, status = null) {
     .populate('uploadedBy', 'name email');
 };
 
-// Static method to get notes by branch and semester
 noteSchema.statics.getNotesByBranchSemester = async function(branch, semester, limit = 50) {
   return this.find({ 
     status: 'approved',
@@ -257,14 +235,12 @@ noteSchema.statics.getNotesByBranchSemester = async function(branch, semester, l
   .populate('uploadedBy', 'name email');
 };
 
-// Static method to get pending notes (admin only)
 noteSchema.statics.getPendingNotes = async function() {
   return this.find({ status: 'pending' })
     .sort({ createdAt: 1 })
     .populate('uploadedBy', 'name email');
 };
 
-// Static method to approve a note
 noteSchema.statics.approveNote = async function(noteId, adminId) {
   return this.findByIdAndUpdate(
     noteId,
@@ -277,7 +253,6 @@ noteSchema.statics.approveNote = async function(noteId, adminId) {
   ).populate('uploadedBy', 'name email');
 };
 
-// Static method to reject a note
 noteSchema.statics.rejectNote = async function(noteId, adminId, reason) {
   return this.findByIdAndUpdate(
     noteId,

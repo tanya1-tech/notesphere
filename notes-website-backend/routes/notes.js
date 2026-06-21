@@ -40,7 +40,6 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// ✅ 10MB LIMIT - Cloudinary free tier max
 const upload = multer({
   storage: storage,
   limits: { 
@@ -55,7 +54,6 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
     try {
       console.log('📤 Upload request received');
       
-      // ✅ Handle multer errors
       if (err instanceof multer.MulterError) {
         if (err.code === 'FILE_TOO_LARGE') {
           return res.status(400).json({ 
@@ -92,17 +90,14 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       console.log('📄 File uploaded to Cloudinary:', req.file.path);
       console.log('📏 File size:', (req.file.size / 1024 / 1024).toFixed(2), 'MB');
 
-      // ✅ Parse tags
       let tags = [];
       if (req.body.tags) {
         tags = req.body.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
       }
 
-      // ✅ Extract and validate fields
       const { title, description, subject, semester, branch, course } = req.body;
       
       if (!title || !description || !subject || !semester || !branch || !course) {
-        // Delete from Cloudinary if validation fails
         try { await cloudinary.uploader.destroy(req.file.filename); } catch (e) {}
         return res.status(400).json({ 
           success: false,
@@ -110,7 +105,6 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         });
       }
 
-      // ✅ Create note
       const note = new Note({
         title: title.trim(),
         description: description.trim(),
@@ -121,7 +115,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         courseCode: req.body.courseCode || '',
         credits: parseInt(req.body.credits) || 3,
         file: req.file.filename,
-        fileUrl: req.file.path,
+        fileUrl: req.file.path, // ✅ Cloudinary URL
         fileSize: req.file.size,
         tags: tags,
         uploadedBy: req.user.id,
@@ -146,12 +140,10 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
     } catch (error) {
       console.error('❌ Upload error:', error);
       
-      // ✅ Delete from Cloudinary if there was an error
       if (req.file) {
         try { await cloudinary.uploader.destroy(req.file.filename); } catch (e) {}
       }
       
-      // ✅ Handle specific errors
       if (error.message && error.message.includes('File size too large')) {
         return res.status(400).json({ 
           success: false,
@@ -179,10 +171,16 @@ router.get('/user/my-notes', auth, async (req, res) => {
     
     console.log('✅ Found', notes.length, 'notes for user');
     
+    // ✅ Include fileUrl in response
+    const notesWithUrl = notes.map(note => ({
+      ...note.toObject(),
+      fileUrl: note.fileUrl || null
+    }));
+    
     res.json({
       success: true,
-      count: notes.length,
-      notes: notes
+      count: notesWithUrl.length,
+      notes: notesWithUrl
     });
   } catch (error) {
     console.error('❌ Get user notes error:', error);
@@ -209,10 +207,16 @@ router.get('/', async (req, res) => {
       .populate('uploadedBy', 'name email')
       .sort({ createdAt: -1 });
     
+    // ✅ Include fileUrl in response
+    const notesWithUrl = notes.map(note => ({
+      ...note.toObject(),
+      fileUrl: note.fileUrl || null
+    }));
+    
     res.json({
       success: true,
-      count: notes.length,
-      notes
+      count: notesWithUrl.length,
+      notes: notesWithUrl
     });
   } catch (error) {
     console.error('❌ Get notes error:', error);
@@ -224,9 +228,6 @@ router.get('/', async (req, res) => {
 });
 
 // ============ ADMIN ROUTES ============
-// ⚠️ IMPORTANT: These MUST be BEFORE the /:id route
-
-// Get all pending notes (admin only)
 router.get('/pending', auth, adminAuth, async (req, res) => {
   try {
     console.log('📥 Fetching pending notes...');
@@ -235,12 +236,18 @@ router.get('/pending', auth, adminAuth, async (req, res) => {
       .populate('uploadedBy', 'name email')
       .sort({ createdAt: -1 });
     
-    console.log(`✅ Found ${notes.length} pending notes`);
+    // ✅ Include fileUrl in response
+    const notesWithUrl = notes.map(note => ({
+      ...note.toObject(),
+      fileUrl: note.fileUrl || null
+    }));
+    
+    console.log(`✅ Found ${notesWithUrl.length} pending notes`);
     
     res.json({
       success: true,
-      count: notes.length,
-      notes
+      count: notesWithUrl.length,
+      notes: notesWithUrl
     });
   } catch (error) {
     console.error('❌ Get pending notes error:', error);
@@ -333,7 +340,6 @@ router.put('/:id/reject', auth, adminAuth, async (req, res) => {
 });
 
 // ============ GET SINGLE NOTE ============
-// ⚠️ This MUST be LAST - it catches any /:id requests
 router.get('/:id', async (req, res) => {
   try {
     const note = await Note.findById(req.params.id)
@@ -349,9 +355,15 @@ router.get('/:id', async (req, res) => {
     note.views += 1;
     await note.save({ validateBeforeSave: false });
     
+    // ✅ Include fileUrl in response
+    const noteWithUrl = {
+      ...note.toObject(),
+      fileUrl: note.fileUrl || null
+    };
+    
     res.json({
       success: true,
-      note
+      note: noteWithUrl
     });
   } catch (error) {
     console.error('❌ Get note error:', error);

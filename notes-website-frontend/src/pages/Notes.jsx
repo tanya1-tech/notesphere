@@ -15,7 +15,6 @@ const Notes = () => {
   });
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  const token = localStorage.getItem('token');
 
   useEffect(() => {
     loadNotes();
@@ -29,7 +28,6 @@ const Notes = () => {
       const { data } = await getNotes(filters);
       console.log('API Response:', data);
       
-      // Filter only approved notes for public viewing
       const approvedNotes = (data.notes || []).filter(note => note.status === 'approved');
       setNotes(approvedNotes);
       
@@ -44,54 +42,31 @@ const Notes = () => {
     }
   };
 
+  // ✅ UPDATED: Use fileUrl from Cloudinary
   const handleViewPDF = (note) => {
     try {
-      // Construct the PDF URL
-      let pdfUrl;
-      const filename = note.file;
+      // Use Cloudinary URL if available
+      const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
+      console.log('📄 Opening PDF:', pdfUrl);
       
-      if (filename.startsWith('/uploads/')) {
-        pdfUrl = `${API_URL}${filename}`;
-      } else if (filename.startsWith('uploads/')) {
-        pdfUrl = `${API_URL}/${filename}`;
-      } else {
-        pdfUrl = `${API_URL}/uploads/${filename}`;
-      }
-      
-      console.log('Opening PDF:', pdfUrl);
-      
-      // Open in new tab as fallback
-      const newWindow = window.open(pdfUrl, '_blank');
-      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-        // If popup blocked, navigate to PDF viewer
-        navigate(`/pdf-viewer?file=${encodeURIComponent(filename)}&title=${encodeURIComponent(note.title)}`);
-      }
+      // Open in new tab
+      window.open(pdfUrl, '_blank');
     } catch (error) {
       console.error('Error viewing PDF:', error);
       toast.error('Failed to open PDF');
     }
   };
 
+  // ✅ UPDATED: Use fileUrl from Cloudinary
   const handleDownload = async (note) => {
     try {
-      const filename = note.file;
-      let pdfUrl;
+      const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
+      console.log('📥 Downloading from:', pdfUrl);
       
-      if (filename.startsWith('/uploads/')) {
-        pdfUrl = `${API_URL}${filename}`;
-      } else if (filename.startsWith('uploads/')) {
-        pdfUrl = `${API_URL}/${filename}`;
-      } else {
-        pdfUrl = `${API_URL}/uploads/${filename}`;
-      }
-      
-      console.log('Downloading from:', pdfUrl);
-      
-      // Fetch the file with auth token if needed
       const response = await fetch(pdfUrl, {
-        headers: token ? {
-          'Authorization': `Bearer ${token}`
-        } : {}
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
       
       if (!response.ok) {
@@ -108,38 +83,12 @@ const Notes = () => {
       link.click();
       document.body.removeChild(link);
       
-      // Clean up
       setTimeout(() => URL.revokeObjectURL(link.href), 5000);
       
       toast.success('Download started!');
     } catch (error) {
       console.error('Download error:', error);
       toast.error('Download failed: ' + error.message);
-      
-      // Fallback: Try direct download
-      try {
-        const filename = note.file;
-        let pdfUrl;
-        
-        if (filename.startsWith('/uploads/')) {
-          pdfUrl = `${API_URL}${filename}`;
-        } else if (filename.startsWith('uploads/')) {
-          pdfUrl = `${API_URL}/${filename}`;
-        } else {
-          pdfUrl = `${API_URL}/uploads/${filename}`;
-        }
-        
-        const link = document.createElement('a');
-        link.href = pdfUrl;
-        link.download = `${note.title}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast.success('Download started using fallback method!');
-      } catch (fallbackError) {
-        toast.error('Please try opening in new tab and save from there');
-      }
     }
   };
 
@@ -156,34 +105,6 @@ const Notes = () => {
       toast.error('API test failed: ' + error.message);
     }
   };
-
-const handleViewPDF = (note) => {
-  try {
-    // ✅ Use Cloudinary URL if available
-    const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
-    console.log('📄 Opening PDF:', pdfUrl);
-    window.open(pdfUrl, '_blank');
-  } catch (error) {
-    console.error('Error viewing PDF:', error);
-    toast.error('Failed to open PDF');
-  }
-};
-
-const handleDownload = async (note) => {
-  try {
-    const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
-    const link = document.createElement('a');
-    link.href = pdfUrl;
-    link.download = `${note.title}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('Download started!');
-  } catch (error) {
-    console.error('Download error:', error);
-    toast.error('Download failed');
-  }
-};
 
   return (
     <div className="container">
@@ -280,7 +201,7 @@ const handleDownload = async (note) => {
         </div>
       </div>
 
-      {/* Debug Info */}
+      {/* Summary */}
       {notes.length > 0 && (
         <div className="card" style={{ background: '#f8f9fa', marginBottom: '2rem' }}>
           <h3>📊 Summary</h3>
@@ -297,7 +218,7 @@ const handleDownload = async (note) => {
       ) : (
         <div className="notes-grid" style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
           gap: '1.5rem'
         }}>
           {notes.length === 0 ? (
