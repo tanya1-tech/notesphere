@@ -20,14 +20,16 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'notesphere-notes',
-    resource_type: 'raw',  // ✅ Use 'raw' for PDF files
+    resource_type: 'raw',
     format: async (req, file) => 'pdf',
     public_id: (req, file) => {
       const timestamp = Date.now();
       const random = Math.round(Math.random() * 1E9);
+      // ✅ Remove .pdf from original name to avoid double extension
       const cleanName = file.originalname
         .replace(/\s+/g, '_')
-        .replace(/[^a-zA-Z0-9_.-]/g, '');
+        .replace(/[^a-zA-Z0-9_.-]/g, '')
+        .replace(/\.pdf$/i, '');
       return `${timestamp}-${random}-${cleanName}`;
     }
   }
@@ -44,7 +46,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage: storage,
   limits: { 
-    fileSize: 10 * 1024 * 1024 // 10MB
+    fileSize: 10 * 1024 * 1024
   },
   fileFilter: fileFilter
 });
@@ -59,13 +61,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         if (err.code === 'FILE_TOO_LARGE') {
           return res.status(400).json({ 
             success: false,
-            message: 'File size exceeds 10MB limit. Please compress your PDF.' 
-          });
-        }
-        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-          return res.status(400).json({ 
-            success: false,
-            message: 'Only one file is allowed' 
+            message: 'File size exceeds 10MB limit.' 
           });
         }
         return res.status(400).json({ 
@@ -88,18 +84,18 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         });
       }
 
-      console.log('📄 File uploaded to Cloudinary - Public ID:', req.file.filename);
+      console.log('📄 File uploaded - Public ID:', req.file.filename);
+      console.log('📄 Cloudinary path:', req.file.path);
       console.log('📏 File size:', (req.file.size / 1024 / 1024).toFixed(2), 'MB');
 
-      // ✅ Generate secure Cloudinary URL
-      const publicId = req.file.filename;
-      const fileUrl = cloudinary.url(publicId, {
+      // ✅ Use Cloudinary's URL helper to generate correct URL
+      const fileUrl = cloudinary.url(req.file.filename, {
         resource_type: 'raw',
         secure: true,
         format: 'pdf'
       });
 
-      console.log('📄 Secure URL:', fileUrl);
+      console.log('📄 Generated URL:', fileUrl);
 
       let tags = [];
       if (req.body.tags) {
@@ -109,11 +105,10 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       const { title, description, subject, semester, branch, course } = req.body;
       
       if (!title || !description || !subject || !semester || !branch || !course) {
-        // Delete from Cloudinary if validation fails
         try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
         return res.status(400).json({ 
           success: false,
-          message: 'Missing required fields: title, description, subject, semester, branch, course are required' 
+          message: 'Missing required fields' 
         });
       }
 
@@ -127,7 +122,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         courseCode: req.body.courseCode || '',
         credits: parseInt(req.body.credits) || 3,
         file: req.file.filename,
-        fileUrl: fileUrl,  // ✅ Store the secure Cloudinary URL
+        fileUrl: fileUrl,
         fileSize: req.file.size,
         tags: tags,
         uploadedBy: req.user.id,
@@ -152,16 +147,8 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
     } catch (error) {
       console.error('❌ Upload error:', error);
       
-      // Delete from Cloudinary if there was an error
       if (req.file) {
         try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
-      }
-      
-      if (error.message && error.message.includes('File size too large')) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'File size exceeds Cloudinary limit. Please compress your PDF to under 10MB.' 
-        });
       }
       
       res.status(500).json({ 
@@ -184,7 +171,6 @@ router.get('/user/my-notes', auth, async (req, res) => {
     
     console.log('✅ Found', notes.length, 'notes for user');
     
-    // ✅ Include fileUrl in response
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
       fileUrl: note.fileUrl || null
@@ -220,7 +206,6 @@ router.get('/', async (req, res) => {
       .populate('uploadedBy', 'name email')
       .sort({ createdAt: -1 });
     
-    // ✅ Include fileUrl in response
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
       fileUrl: note.fileUrl || null
@@ -252,7 +237,6 @@ router.get('/pending', auth, adminAuth, async (req, res) => {
       .populate('uploadedBy', 'name email')
       .sort({ createdAt: -1 });
     
-    // ✅ Include fileUrl in response
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
       fileUrl: note.fileUrl || null
@@ -372,7 +356,6 @@ router.get('/:id', async (req, res) => {
     note.views += 1;
     await note.save({ validateBeforeSave: false });
     
-    // ✅ Include fileUrl in response
     const noteWithUrl = {
       ...note.toObject(),
       fileUrl: note.fileUrl || null
