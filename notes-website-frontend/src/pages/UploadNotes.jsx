@@ -21,29 +21,31 @@ const UploadNotes = ({ user }) => {
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
- const validateForm = () => {
-  const newErrors = {};
-  
-  if (!formData.title.trim()) newErrors.title = 'Title is required';
-  if (formData.title.length > 200) newErrors.title = 'Title cannot exceed 200 characters';
-  if (!formData.description.trim()) newErrors.description = 'Description is required';
-  if (formData.description.length > 2000) newErrors.description = 'Description cannot exceed 2000 characters';
-  if (!formData.subject.trim()) newErrors.subject = 'Subject is required';
-  if (!formData.semester) newErrors.semester = 'Semester is required';
-  if (!formData.branch) newErrors.branch = 'Branch is required';
-  if (!formData.course) newErrors.course = 'Course is required';
-  
-  // ✅ File validation
-  if (!file) {
-    newErrors.file = 'Please select a PDF file';
-  } else if (file.size > 30 * 1024 * 1024) {
-    newErrors.file = 'File size must be less than 30MB';
-  }
-  
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
+  // ============ VALIDATION ============
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.title.trim()) newErrors.title = 'Title is required';
+    if (formData.title.length > 200) newErrors.title = 'Title cannot exceed 200 characters';
+    if (!formData.description.trim()) newErrors.description = 'Description is required';
+    if (formData.description.length > 2000) newErrors.description = 'Description cannot exceed 2000 characters';
+    if (!formData.subject.trim()) newErrors.subject = 'Subject is required';
+    if (!formData.semester) newErrors.semester = 'Semester is required';
+    if (!formData.branch) newErrors.branch = 'Branch is required';
+    if (!formData.course) newErrors.course = 'Course is required';
+    
+    // ✅ File validation - 10MB (Cloudinary free tier limit)
+    if (!file) {
+      newErrors.file = 'Please select a PDF file';
+    } else if (file.size > 10 * 1024 * 1024) {
+      newErrors.file = 'File size must be less than 10MB';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
+  // ============ HANDLE SUBMIT ============
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -64,7 +66,7 @@ const UploadNotes = ({ user }) => {
       }
     });
     
-    // ✅ Append file
+    // Append file
     if (file) {
       uploadData.append('file', file);
       console.log('📄 File attached:', file.name, file.size);
@@ -86,7 +88,7 @@ const UploadNotes = ({ user }) => {
       
       console.log('📤 Uploading to:', `${API_URL}/api/notes/upload`);
       console.log('📄 File:', file?.name);
-      console.log('📏 File size:', file?.size);
+      console.log('📏 File size:', (file?.size / 1024 / 1024).toFixed(2), 'MB');
       console.log('📝 Form data:', Object.fromEntries(uploadData));
 
       const response = await fetch(`${API_URL}/api/notes/upload`, {
@@ -97,17 +99,14 @@ const UploadNotes = ({ user }) => {
         body: uploadData
       });
       
-      // ✅ Log response status
       console.log('📥 Response status:', response.status);
 
-      // ✅ Try to parse response
       let data;
       try {
         data = await response.json();
         console.log('📥 Response data:', data);
       } catch (parseError) {
         console.error('❌ Failed to parse response:', parseError);
-        // Try to get text response
         const text = await response.text();
         console.log('📥 Raw response:', text);
         throw new Error('Server returned invalid response');
@@ -120,7 +119,6 @@ const UploadNotes = ({ user }) => {
           navigate('/dashboard');
         }, 1500);
       } else {
-        // ✅ Show detailed error
         const errorMessage = data.message || data.error || 'Upload failed';
         toast.error(errorMessage);
         console.error('❌ Upload error:', data);
@@ -135,6 +133,7 @@ const UploadNotes = ({ user }) => {
     }
   };
 
+  // ============ HANDLE CHANGE ============
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -146,6 +145,7 @@ const UploadNotes = ({ user }) => {
     }
   };
 
+  // ============ HANDLE FILE CHANGE ============
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
@@ -157,11 +157,11 @@ const UploadNotes = ({ user }) => {
         return;
       }
       
-      // Validate file size (30MB)
-      if (selectedFile.size > 30 * 1024 * 1024) {
-        toast.error('File size exceeds 30MB limit');
+      // ✅ Validate file size - 10MB (Cloudinary free tier limit)
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        toast.error('File size exceeds 10MB limit. Please compress your PDF.');
         e.target.value = '';
-        setErrors(prev => ({ ...prev, file: 'File size must be less than 30MB' }));
+        setErrors(prev => ({ ...prev, file: 'File size must be less than 10MB' }));
         return;
       }
       
@@ -171,6 +171,7 @@ const UploadNotes = ({ user }) => {
     }
   };
 
+  // ============ BRANCHES & COURSES ============
   const branches = [
     'Computer Science & Engineering',
     'Information Technology',
@@ -199,6 +200,7 @@ const UploadNotes = ({ user }) => {
     'MA'
   ];
 
+  // ============ RENDER ============
   return (
     <div className="container upload-page">
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -411,7 +413,7 @@ const UploadNotes = ({ user }) => {
                     </button>
                   </div>
                 )}
-                <small className="form-text">Maximum file size: 30MB. Only PDF files are accepted.</small>
+                <small className="form-text">Maximum file size: <strong>10MB</strong>. Only PDF files are accepted.</small>
               </div>
             </div>
 
@@ -469,17 +471,28 @@ const UploadNotes = ({ user }) => {
           </form>
 
           {/* Upload Guidelines */}
-          <div className="upload-guidelines">
-  <h4>📝 Upload Guidelines</h4>
-  <ul>
-    <li>Only PDF files are accepted (Max size: <strong>30MB</strong>)</li>
-    <li>Ensure notes are clear, readable, and properly formatted</li>
-    <li>Include relevant topics and chapters in description</li>
-    <li>Provide accurate course information for better organization</li>
-    <li>Don't upload copyrighted material</li>
-    <li>Notes will be reviewed before publishing</li>
-  </ul>
-</div>
+          <div className="upload-guidelines" style={{
+            marginTop: '2rem',
+            padding: '1.5rem',
+            background: '#f8f9fa',
+            borderRadius: '8px',
+            border: '1px solid #e1e5e9'
+          }}>
+            <h4 style={{ marginBottom: '1rem' }}>📝 Upload Guidelines</h4>
+            <ul style={{ 
+              margin: 0,
+              paddingLeft: '1.5rem',
+              color: '#666',
+              lineHeight: '1.8'
+            }}>
+              <li>Only PDF files are accepted (Max size: <strong>10MB</strong>)</li>
+              <li>Ensure notes are clear, readable, and properly formatted</li>
+              <li>Include relevant topics and chapters in description</li>
+              <li>Provide accurate course information for better organization</li>
+              <li>Don't upload copyrighted material</li>
+              <li>Notes will be reviewed before publishing</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

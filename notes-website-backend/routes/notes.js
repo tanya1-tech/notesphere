@@ -24,7 +24,6 @@ const storage = new CloudinaryStorage({
     public_id: (req, file) => {
       const timestamp = Date.now();
       const random = Math.round(Math.random() * 1E9);
-      // ✅ Clean filename - remove special characters and emojis
       const cleanName = file.originalname
         .replace(/\s+/g, '_')
         .replace(/[^a-zA-Z0-9_.-]/g, '');
@@ -41,10 +40,11 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+// ✅ 10MB LIMIT - Cloudinary free tier max
 const upload = multer({
   storage: storage,
   limits: { 
-    fileSize: 30 * 1024 * 1024 // 30MB limit
+    fileSize: 10 * 1024 * 1024 // 10MB
   },
   fileFilter: fileFilter
 });
@@ -60,7 +60,13 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         if (err.code === 'FILE_TOO_LARGE') {
           return res.status(400).json({ 
             success: false,
-            message: 'File size exceeds 30MB limit. Please upload a smaller file.' 
+            message: 'File size exceeds 10MB limit. Please compress your PDF.' 
+          });
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({ 
+            success: false,
+            message: 'Only one file is allowed' 
           });
         }
         return res.status(400).json({ 
@@ -114,8 +120,8 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         course: course.trim(),
         courseCode: req.body.courseCode || '',
         credits: parseInt(req.body.credits) || 3,
-        file: req.file.filename,          // Store the public_id
-        fileUrl: req.file.path,            // Store the Cloudinary URL
+        file: req.file.filename,
+        fileUrl: req.file.path,
         fileSize: req.file.size,
         tags: tags,
         uploadedBy: req.user.id,
@@ -139,10 +145,20 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
 
     } catch (error) {
       console.error('❌ Upload error:', error);
-      // Delete from Cloudinary if there was an error
+      
+      // ✅ Delete from Cloudinary if there was an error
       if (req.file) {
         try { await cloudinary.uploader.destroy(req.file.filename); } catch (e) {}
       }
+      
+      // ✅ Handle specific errors
+      if (error.message && error.message.includes('File size too large')) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'File size exceeds Cloudinary limit. Please compress your PDF to under 10MB.' 
+        });
+      }
+      
       res.status(500).json({ 
         success: false,
         message: 'Internal server error',
@@ -330,7 +346,6 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    // ✅ Increment views
     note.views += 1;
     await note.save({ validateBeforeSave: false });
     

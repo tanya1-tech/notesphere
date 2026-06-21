@@ -48,8 +48,8 @@ app.use(cors({
 }));
 
 // ✅ Body Parser - Increased for large file uploads
-app.use(express.json({ limit: '30mb' }));
-app.use(express.urlencoded({ extended: true, limit: '30mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ✅ Serve uploads folder statically (for local development)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
