@@ -21,22 +21,28 @@ const UploadNotes = ({ user }) => {
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.title.trim()) newErrors.title = 'Title is required';
-    if (formData.title.length > 200) newErrors.title = 'Title cannot exceed 200 characters';
-    if (!formData.description.trim()) newErrors.description = 'Description is required';
-    if (formData.description.length > 2000) newErrors.description = 'Description cannot exceed 2000 characters';
-    if (!formData.subject.trim()) newErrors.subject = 'Subject is required';
-    if (!formData.semester) newErrors.semester = 'Semester is required';
-    if (!formData.branch) newErrors.branch = 'Branch is required';
-    if (!formData.course) newErrors.course = 'Course is required';
-    if (!file) newErrors.file = 'Please select a PDF file';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+ const validateForm = () => {
+  const newErrors = {};
+  
+  if (!formData.title.trim()) newErrors.title = 'Title is required';
+  if (formData.title.length > 200) newErrors.title = 'Title cannot exceed 200 characters';
+  if (!formData.description.trim()) newErrors.description = 'Description is required';
+  if (formData.description.length > 2000) newErrors.description = 'Description cannot exceed 2000 characters';
+  if (!formData.subject.trim()) newErrors.subject = 'Subject is required';
+  if (!formData.semester) newErrors.semester = 'Semester is required';
+  if (!formData.branch) newErrors.branch = 'Branch is required';
+  if (!formData.course) newErrors.course = 'Course is required';
+  
+  // ✅ File validation
+  if (!file) {
+    newErrors.file = 'Please select a PDF file';
+  } else if (file.size > 30 * 1024 * 1024) {
+    newErrors.file = 'File size must be less than 30MB';
+  }
+  
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -463,28 +469,17 @@ const UploadNotes = ({ user }) => {
           </form>
 
           {/* Upload Guidelines */}
-          <div className="upload-guidelines" style={{
-            marginTop: '2rem',
-            padding: '1.5rem',
-            background: '#f8f9fa',
-            borderRadius: '8px',
-            border: '1px solid #e1e5e9'
-          }}>
-            <h4 style={{ marginBottom: '1rem' }}>📝 Upload Guidelines</h4>
-            <ul style={{ 
-              margin: 0,
-              paddingLeft: '1.5rem',
-              color: '#666',
-              lineHeight: '1.8'
-            }}>
-              <li>Only PDF files are accepted (Max size: 30MB)</li>
-              <li>Ensure notes are clear, readable, and properly formatted</li>
-              <li>Include relevant topics and chapters in description</li>
-              <li>Provide accurate course information for better organization</li>
-              <li>Don't upload copyrighted material</li>
-              <li>Notes will be reviewed before publishing</li>
-            </ul>
-          </div>
+          <div className="upload-guidelines">
+  <h4>📝 Upload Guidelines</h4>
+  <ul>
+    <li>Only PDF files are accepted (Max size: <strong>30MB</strong>)</li>
+    <li>Ensure notes are clear, readable, and properly formatted</li>
+    <li>Include relevant topics and chapters in description</li>
+    <li>Provide accurate course information for better organization</li>
+    <li>Don't upload copyrighted material</li>
+    <li>Notes will be reviewed before publishing</li>
+  </ul>
+</div>
         </div>
       </div>
     </div>

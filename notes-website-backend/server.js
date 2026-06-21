@@ -10,24 +10,29 @@ import userRoutes from './routes/users.js';
 import noteRoutes from './routes/notes.js';
 import fs from 'fs';
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ============ LOAD ENVIRONMENT VARIABLES ============
 dotenv.config();
 
+// ============ INITIALIZE EXPRESS ============
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============ MIDDLEWARE ============
+
+// ✅ Rate Limiting
 app.use('/api/', generalLimiter);
 
+// ✅ CORS Configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:3000'];
+  : ['http://localhost:5173', 'http://localhost:3000', 'https://notesphere-sandy.vercel.app'];
 
 app.use(cors({
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -38,19 +43,24 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// ✅ Body Parser - Increased for large file uploads
+app.use(express.json({ limit: '30mb' }));
+app.use(express.urlencoded({ extended: true, limit: '30mb' }));
 
+// ✅ Serve uploads folder statically (for local development)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ✅ Logging middleware
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
 
+// ============ CREATE UPLOADS DIRECTORY (LOCAL) ============
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
   try {
@@ -60,7 +70,6 @@ if (!fs.existsSync(uploadDir)) {
     console.error('❌ Failed to create uploads directory:', err);
   }
 }
-
 
 // ============ ROUTES ============
 app.use('/api/users', userRoutes);
@@ -72,10 +81,12 @@ app.get('/health', (req, res) => {
     status: 'healthy',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
+// ============ ROOT ENDPOINT ============
 app.get('/', (req, res) => {
   res.json({
     message: 'Notesphere Backend is running!',
@@ -92,14 +103,14 @@ app.use(errorHandler);
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error('❌ MONGODB_URI is required');
+  console.error('❌ MONGODB_URI is required in environment variables');
   process.exit(1);
 }
 
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000,
+  serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
 });
 
@@ -123,19 +134,30 @@ app.listen(PORT, () => {
 });
 
 // ============ GRACEFUL SHUTDOWN ============
-// ✅ FIXED - Mongoose 7+ doesn't accept callback
 const shutdown = () => {
-  console.log('Shutting down gracefully...');
+  console.log('🛑 Shutting down gracefully...');
   mongoose.connection.close()
     .then(() => {
-      console.log('MongoDB connection closed');
+      console.log('✅ MongoDB connection closed');
       process.exit(0);
     })
     .catch((err) => {
-      console.error('Error closing MongoDB connection:', err);
+      console.error('❌ Error closing MongoDB connection:', err);
       process.exit(1);
     });
 };
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+
+// ✅ Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  shutdown();
+});
+
+// ✅ Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  shutdown();
+});

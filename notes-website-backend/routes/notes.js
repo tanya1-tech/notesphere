@@ -24,7 +24,11 @@ const storage = new CloudinaryStorage({
     public_id: (req, file) => {
       const timestamp = Date.now();
       const random = Math.round(Math.random() * 1E9);
-      return `${timestamp}-${random}-${file.originalname.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+      // ✅ Clean filename - remove special characters and emojis
+      const cleanName = file.originalname
+        .replace(/\s+/g, '_')
+        .replace(/[^a-zA-Z0-9_.-]/g, '');
+      return `${timestamp}-${random}-${cleanName}`;
     }
   }
 });
@@ -39,7 +43,9 @@ const fileFilter = (req, file, cb) => {
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 30 * 1024 * 1024 },
+  limits: { 
+    fileSize: 30 * 1024 * 1024 // 30MB limit
+  },
   fileFilter: fileFilter
 });
 
@@ -49,11 +55,12 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
     try {
       console.log('📤 Upload request received');
       
+      // ✅ Handle multer errors
       if (err instanceof multer.MulterError) {
         if (err.code === 'FILE_TOO_LARGE') {
           return res.status(400).json({ 
             success: false,
-            message: 'File size exceeds 30MB limit' 
+            message: 'File size exceeds 30MB limit. Please upload a smaller file.' 
           });
         }
         return res.status(400).json({ 
@@ -77,12 +84,15 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       }
 
       console.log('📄 File uploaded to Cloudinary:', req.file.path);
+      console.log('📏 File size:', (req.file.size / 1024 / 1024).toFixed(2), 'MB');
 
+      // ✅ Parse tags
       let tags = [];
       if (req.body.tags) {
         tags = req.body.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
       }
 
+      // ✅ Extract and validate fields
       const { title, description, subject, semester, branch, course } = req.body;
       
       if (!title || !description || !subject || !semester || !branch || !course) {
@@ -90,10 +100,11 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         try { await cloudinary.uploader.destroy(req.file.filename); } catch (e) {}
         return res.status(400).json({ 
           success: false,
-          message: 'Missing required fields' 
+          message: 'Missing required fields: title, description, subject, semester, branch, course are required' 
         });
       }
 
+      // ✅ Create note
       const note = new Note({
         title: title.trim(),
         description: description.trim(),
@@ -197,6 +208,8 @@ router.get('/', async (req, res) => {
 });
 
 // ============ ADMIN ROUTES ============
+// ⚠️ IMPORTANT: These MUST be BEFORE the /:id route
+
 // Get all pending notes (admin only)
 router.get('/pending', auth, adminAuth, async (req, res) => {
   try {
@@ -304,6 +317,7 @@ router.put('/:id/reject', auth, adminAuth, async (req, res) => {
 });
 
 // ============ GET SINGLE NOTE ============
+// ⚠️ This MUST be LAST - it catches any /:id requests
 router.get('/:id', async (req, res) => {
   try {
     const note = await Note.findById(req.params.id)
@@ -316,6 +330,7 @@ router.get('/:id', async (req, res) => {
       });
     }
     
+    // ✅ Increment views
     note.views += 1;
     await note.save({ validateBeforeSave: false });
     
