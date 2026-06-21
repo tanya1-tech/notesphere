@@ -1,48 +1,31 @@
 import express from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import Note from '../models/Note.js';
 import { auth, adminAuth } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const router = express.Router();
 
-// ============ ENSURE UPLOADS DIRECTORY EXISTS ============
-const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) {
-  try {
-    fs.mkdirSync(uploadDir, { recursive: true });
-    console.log('📁 Uploads directory created:', uploadDir);
-  } catch (err) {
-    console.error('❌ Failed to create uploads directory:', err);
-  }
-}
+// ============ CLOUDINARY CONFIGURATION ============
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-// ============ MULTER CONFIGURATION ============
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    // ✅ Sanitize filename - remove special characters and emojis
-    const cleanName = file.originalname
-      .replace(/\s+/g, '_')                    // Replace spaces with underscores
-      .replace(/[^a-zA-Z0-9._-]/g, '')          // Remove all special characters
-      .replace(/_{2,}/g, '_');                  // Remove multiple underscores
-    
-    // Generate unique filename with timestamp
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const finalName = uniqueSuffix + '-' + cleanName;
-    
-    console.log('📄 Original:', file.originalname);
-    console.log('📄 Sanitized:', finalName);
-    
-    cb(null, finalName);
+// ============ MULTER STORAGE WITH CLOUDINARY ============
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'notesphere-notes',
+    format: async (req, file) => 'pdf',
+    public_id: (req, file) => {
+      const timestamp = Date.now();
+      const random = Math.round(Math.random() * 1E9);
+      return `${timestamp}-${random}-${file.originalname.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+    }
   }
 });
 
@@ -93,7 +76,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         });
       }
 
-      console.log('📄 File uploaded:', req.file.filename);
+      console.log('📄 File uploaded to Cloudinary:', req.file.path);
 
       let tags = [];
       if (req.body.tags) {
@@ -103,7 +86,8 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       const { title, description, subject, semester, branch, course } = req.body;
       
       if (!title || !description || !subject || !semester || !branch || !course) {
-        try { fs.unlinkSync(req.file.path); } catch (e) {}
+        // Delete from Cloudinary if validation fails
+        try { await cloudinary.uploader.destroy(req.file.filename); } catch (e) {}
         return res.status(400).json({ 
           success: false,
           message: 'Missing required fields' 
@@ -119,7 +103,8 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         course: course.trim(),
         courseCode: req.body.courseCode || '',
         credits: parseInt(req.body.credits) || 3,
-        file: req.file.filename,
+        file: req.file.filename,          // Store the public_id
+        fileUrl: req.file.path,            // Store the Cloudinary URL
         fileSize: req.file.size,
         tags: tags,
         uploadedBy: req.user.id,
@@ -136,14 +121,16 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
           id: note._id,
           title: note.title,
           status: note.status,
-          file: note.file
+          file: note.file,
+          fileUrl: note.fileUrl
         }
       });
 
     } catch (error) {
       console.error('❌ Upload error:', error);
+      // Delete from Cloudinary if there was an error
       if (req.file) {
-        try { fs.unlinkSync(req.file.path); } catch (e) {}
+        try { await cloudinary.uploader.destroy(req.file.filename); } catch (e) {}
       }
       res.status(500).json({ 
         success: false,
@@ -210,8 +197,6 @@ router.get('/', async (req, res) => {
 });
 
 // ============ ADMIN ROUTES ============
-// ⚠️ IMPORTANT: These MUST be BEFORE the /:id route
-
 // Get all pending notes (admin only)
 router.get('/pending', auth, adminAuth, async (req, res) => {
   try {
@@ -319,7 +304,6 @@ router.put('/:id/reject', auth, adminAuth, async (req, res) => {
 });
 
 // ============ GET SINGLE NOTE ============
-// ⚠️ This MUST be LAST - it catches any /:id requests
 router.get('/:id', async (req, res) => {
   try {
     const note = await Note.findById(req.params.id)

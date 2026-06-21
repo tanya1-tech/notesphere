@@ -157,6 +157,34 @@ const Notes = () => {
     }
   };
 
+const handleViewPDF = (note) => {
+  try {
+    // ✅ Use Cloudinary URL if available
+    const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
+    console.log('📄 Opening PDF:', pdfUrl);
+    window.open(pdfUrl, '_blank');
+  } catch (error) {
+    console.error('Error viewing PDF:', error);
+    toast.error('Failed to open PDF');
+  }
+};
+
+const handleDownload = async (note) => {
+  try {
+    const pdfUrl = note.fileUrl || `${API_URL}/uploads/${note.file}`;
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.download = `${note.title}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Download started!');
+  } catch (error) {
+    console.error('Download error:', error);
+    toast.error('Download failed');
+  }
+};
+
   return (
     <div className="container">
       <div className="card">

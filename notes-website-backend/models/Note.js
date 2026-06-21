@@ -57,6 +57,12 @@ const noteSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+
+  fileUrl: {
+  type: String,
+  default: null
+},
+
   uploadedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
