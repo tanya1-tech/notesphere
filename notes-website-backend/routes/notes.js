@@ -61,7 +61,13 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         if (err.code === 'FILE_TOO_LARGE') {
           return res.status(400).json({ 
             success: false,
-            message: 'File size exceeds 10MB limit.' 
+            message: 'File size exceeds 10MB limit. Please compress your PDF.' 
+          });
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({ 
+            success: false,
+            message: 'Only one file is allowed' 
           });
         }
         return res.status(400).json({ 
@@ -85,15 +91,16 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
       }
 
       console.log('📄 File uploaded - Public ID:', req.file.filename);
-      console.log('📄 Cloudinary path:', req.file.path);
       console.log('📏 File size:', (req.file.size / 1024 / 1024).toFixed(2), 'MB');
 
-      // ✅ Use Cloudinary's URL helper to generate correct URL
-      const fileUrl = cloudinary.url(req.file.filename, {
-        resource_type: 'raw',
-        secure: true,
-        format: 'pdf'
-      });
+      // ✅ Generate correct Cloudinary URL without double .pdf
+      let publicId = req.file.filename;
+      if (publicId.endsWith('.pdf')) {
+        publicId = publicId.slice(0, -4);
+      }
+      
+      const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+      const fileUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/v1/notesphere-notes/${publicId}.pdf`;
 
       console.log('📄 Generated URL:', fileUrl);
 
@@ -108,7 +115,7 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
         return res.status(400).json({ 
           success: false,
-          message: 'Missing required fields' 
+          message: 'Missing required fields: title, description, subject, semester, branch, course are required' 
         });
       }
 
@@ -151,6 +158,13 @@ router.post('/upload', auth, uploadLimiter, (req, res) => {
         try { await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'raw' }); } catch (e) {}
       }
       
+      if (error.message && error.message.includes('File size too large')) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'File size exceeds Cloudinary limit. Please compress your PDF to under 10MB.' 
+        });
+      }
+      
       res.status(500).json({ 
         success: false,
         message: 'Internal server error',
@@ -171,6 +185,7 @@ router.get('/user/my-notes', auth, async (req, res) => {
     
     console.log('✅ Found', notes.length, 'notes for user');
     
+    // ✅ Include fileUrl in response
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
       fileUrl: note.fileUrl || null
@@ -206,6 +221,7 @@ router.get('/', async (req, res) => {
       .populate('uploadedBy', 'name email')
       .sort({ createdAt: -1 });
     
+    // ✅ Include fileUrl in response
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
       fileUrl: note.fileUrl || null
@@ -237,6 +253,7 @@ router.get('/pending', auth, adminAuth, async (req, res) => {
       .populate('uploadedBy', 'name email')
       .sort({ createdAt: -1 });
     
+    // ✅ Include fileUrl in response
     const notesWithUrl = notes.map(note => ({
       ...note.toObject(),
       fileUrl: note.fileUrl || null
@@ -356,6 +373,7 @@ router.get('/:id', async (req, res) => {
     note.views += 1;
     await note.save({ validateBeforeSave: false });
     
+    // ✅ Include fileUrl in response
     const noteWithUrl = {
       ...note.toObject(),
       fileUrl: note.fileUrl || null
