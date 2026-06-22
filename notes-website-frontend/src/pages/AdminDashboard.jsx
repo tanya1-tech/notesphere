@@ -46,14 +46,6 @@ const AdminDashboard = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="container">
-        <div className="loading">Loading pending notes...</div>
-      </div>
-    );
-  }
-
   return (
     <div className="container">
       <h2>📋 Admin Dashboard</h2>

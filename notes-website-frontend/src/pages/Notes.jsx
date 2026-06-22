@@ -192,13 +192,6 @@ const Notes = () => {
         </div>
       )}
 
-      {loading ? (
-        <div className="card">
-          <div style={{ textAlign: 'center', padding: '3rem' }}>
-            <div className="loading">Loading notes...</div>
-          </div>
-        </div>
-      ) : (
         <div className="notes-grid" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -362,7 +355,7 @@ const Notes = () => {
             ))
           )}
         </div>
-      )}
+
     </div>
   );
 };

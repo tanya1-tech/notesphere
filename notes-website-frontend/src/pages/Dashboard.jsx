@@ -53,14 +53,6 @@ const Dashboard = ({ user }) => {
     { name: 'Computer Networks', notes: 28 }
   ];
 
-  if (loading) {
-    return (
-      <div className="container">
-        <div className="loading">Loading your dashboard...</div>
-      </div>
-    );
-  }
-
   return (
     <div className="container">
       {/* Welcome Section */}
